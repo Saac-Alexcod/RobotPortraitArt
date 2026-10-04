@@ -18,7 +18,7 @@
 ```text
 robot_portrait_art_project/
 ├─ data/
-│  ├─ input/                    # 自己的测试照片（face.jpg 等）
+│  ├─ input/                    # 私人输入照片（不提交；face.jpg/png 等）
 │  ├─ reference_style/          # 与测试照片同名的参考线稿
 │  ├─ CelebA/                   # 原始 CelebA，不提交到 Git
 │  └─ apdrawing_preprocessed/   # APDrawingGAN 对齐/关键点/局部预处理结果
@@ -206,7 +206,7 @@ python scripts/compare_grid.py --original outputs/celeba_000001_prepared.png --b
 
 ## 评价原则与实验记录
 
-SSIM、Edge-F1 越高越好，LPIPS 越低越好；SVG 还记录 path 数量和文件字节数。E0/E1/E2 的结果请写入 `EXPERIMENTS.md` 和 `REPORT_DATA_TEMPLATE.csv`，所有数值必须来自实际运行。当前没有 CelebA、APDrawingGAN 或用户照片时，只有代码级验证，不代表真实数据集实验完成。
+SSIM、Edge-F1 越高越好，LPIPS 越低越好；SVG 还记录 path 数量和文件字节数。E0/E1/E2 的结果请写入 `EXPERIMENTS.md` 和 `REPORT_DATA_TEMPLATE.csv`，所有数值必须来自实际运行。当前项目包含 CelebA 数据与可运行的 E0 baseline；正式艺术质量指标仍需要独立参考线稿，E1/E2 仍需要 APDrawingGAN 权重及其专用预处理输入。
 
 评价注意事项：
 
@@ -263,5 +263,3 @@ python -m pip show cairosvg
 - 没有参考线稿时不能计算有意义的 SSIM、Edge-F1 或 LPIPS；程序不会用演示图结果冒充真实实验。
 
 参考工程：APDrawingGAN、APDrawingGAN++、U-GAT-IT、GANs N' Roses、CelebA。使用时请遵守各自许可证和数据协议。
-#   R o b o t P o r t r a i t A r t  
- 
