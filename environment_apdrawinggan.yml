@@ -1,0 +1,12 @@
+name: apdrawinggan-legacy
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - python=2.7
+  - pip
+  # APDrawingGAN 官方依赖可能随仓库版本变化，请以 third_party/APDrawingGAN 的说明为准。
+  - pip:
+      - opencv-python
+      - dominate
+      - visdom

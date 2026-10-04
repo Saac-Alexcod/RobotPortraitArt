@@ -1,0 +1,74 @@
+# Python caches and local tooling
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.cache/
+pytest-cache-files-*/
+.coverage
+htmlcov/
+
+# Local virtual environments and IDE files
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Secrets and local credentials
+*.pem
+*.key
+*.p12
+credentials.json
+token.json
+secrets.json
+
+# User photos and private reference artwork
+data/input/*
+!data/input/.gitkeep
+!data/input/README.md
+!data/input/demo_face.png
+data/reference_style/*
+!data/reference_style/.gitkeep
+!data/reference_style/README.md
+
+# Large datasets and archives (keep instructions, never raw images)
+data/CelebA/*
+!data/CelebA/README.txt
+!data/CelebA/.gitkeep
+data/**/*.zip
+data/**/*.7z
+data/**/*.tar
+data/**/*.tar.gz
+data/**/*.rar
+
+# APDrawingGAN user-specific preprocessing and model artifacts
+data/apdrawing_preprocessed/*
+!data/apdrawing_preprocessed/.gitkeep
+!data/apdrawing_preprocessed/README.md
+third_party/APDrawingGAN/checkpoints/
+third_party/APDrawingGAN/results/
+third_party/APDrawingGAN/dataset/
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.safetensors
+
+# Generated outputs and reports; keep only the directory marker
+outputs/*
+!outputs/.gitkeep
+
+# Generic build and temporary files
+build/
+dist/
+*.log
+*.tmp
+*.bak
+Thumbs.db
+.DS_Store

@@ -1,0 +1,6 @@
+# Optional perceptual metric (LPIPS). Install a matching CPU/GPU torch build first when needed.
+torch>=2.1
+torchvision>=0.16
+lpips>=0.1.4
+# Optional SVG rasterization backend.
+cairosvg>=2.7

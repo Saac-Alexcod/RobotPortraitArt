@@ -1,0 +1,71 @@
+你是一名资深计算机视觉/深度学习工程师。请在我提供的基础项目上完成“机器人肖像绘制艺术风格学习（L1）”课程任务。
+
+【总目标】
+实现一个可复现的端到端系统：
+1. 输入单张人脸照片；
+2. 生成艺术肖像线稿/绘画风格图；
+3. 对眼睛、眉毛、鼻子、嘴巴、脸部轮廓、头发等局部结构尽量保持身份与几何一致性；
+4. 将最终线稿矢量化为 SVG；
+5. 输出定量评价与可视化对比；
+6. 支持扩展到动漫/卡通风格。
+
+【必须遵守】
+- 不要从零重写 APDrawingGAN；优先把官方仓库作为 third_party 外部依赖，通过 adapter 调用。
+- 官方 APDrawingGAN 代码较旧，因此主项目使用现代 Python 环境，legacy 模型放独立环境；不要强行把所有依赖混在一个 requirements.txt。
+- 不要虚构模型权重、数据路径或实验结果。缺少权重/数据时给出明确下载/放置说明。
+- 任何脚本都必须有 argparse、清晰报错、相对路径支持。
+- 训练/测试必须固定随机种子并记录配置。
+- 代码要能在没有 GPU 时至少跑通 baseline + SVG + metrics。
+- 对第三方代码只做最小侵入适配，并保留许可证/引用。
+
+【参考路线】
+A. 主线：APDrawingGAN / APDrawingGAN++ 做照片->艺术肖像线稿。
+B. 基线：项目内 OpenCV line-art，确保端到端可运行。
+C. 扩展：U-GAT-IT 或 GANs N' Roses 做卡通/动漫风格（作为扩展实验，不替代主线）。
+D. 矢量化：对二值/灰度线稿做轮廓提取、曲线简化，输出 SVG。
+E. 评价：
+   - SSIM：结构相似度；
+   - Edge-F1：边缘/线条一致性；
+   - LPIPS：感知距离（可选依赖，越低越好）；
+   - SVG path_count/file_size：矢量复杂度；
+   - 人工局部评分表：eyes / eyebrows / nose / mouth / contour / hair，各 1~5 分。
+
+【你需要完成的开发任务】
+1. 先阅读 README、configs、scripts、src。
+2. 运行或静态检查 baseline，修复任何 import/path/config bug。
+3. 增加 `scripts/prepare_image.py`：
+   - EXIF 自动旋转；
+   - 人脸区域居中裁剪；
+   - 输出 512 或 1024 方图；
+   - 如果没有检测到人脸，保留中心裁剪并给 warning。
+4. 增加 `scripts/compare_grid.py`：生成 original / baseline / APDrawingGAN / vector-rasterized 四列对比图；缺失项自动跳过。
+5. 增加 `scripts/batch_evaluate.py`：对目录批量计算 SSIM、Edge-F1、可选 LPIPS，输出 CSV + summary.json。
+6. 增加 SVG 回栅格评测能力：优先 cairosvg；没有依赖时给安装提示，不静默失败。
+7. 增加 `environment_apdrawinggan.yml`，用于 legacy APDrawingGAN 独立环境，并在 README 中解释为什么隔离。
+8. 增加 `EXPERIMENTS.md`，写清楚至少三组实验：
+   - E0 OpenCV baseline；
+   - E1 APDrawingGAN pretrained；
+   - E2 APDrawingGAN + 参数/预处理改进或 APDrawingGAN++；
+   每组写输入、配置、指标、结果图路径、结论占位符。
+9. 增加 `REPORT_DATA_TEMPLATE.csv`，列包括：
+   sample_id, method, ssim, edge_f1, lpips, svg_paths, svg_bytes,
+   eyes_score, eyebrows_score, nose_score, mouth_score, contour_score, hair_score, notes
+10. 为核心函数补 pytest 单元测试。
+11. 所有新增代码完成后，输出：
+   - 最终目录树；
+   - 安装命令；
+   - baseline 运行命令；
+   - APDrawingGAN 运行命令；
+   - 批量评价命令；
+   - 已完成/仍需用户准备的事项清单。
+
+【验收标准】
+- CPU 环境可运行 baseline；
+- 一条命令生成 PNG + SVG；
+- 有可复现的评价输出；
+- neural backend 与主工程解耦；
+- README 足以让同学在新机器复现；
+- 不把“风格像不像”只用像素误差衡量，要结合结构、感知和人工局部评价；
+- 最终报告中的任何数值必须来自真实运行，不得编造。
+
+现在开始：先审查现有项目，再逐项实现；遇到缺失模型/数据时继续完成不依赖它们的部分，不要停在提问阶段。
