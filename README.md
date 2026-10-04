@@ -263,3 +263,5 @@ python -m pip show cairosvg
 - 没有参考线稿时不能计算有意义的 SSIM、Edge-F1 或 LPIPS；程序不会用演示图结果冒充真实实验。
 
 参考工程：APDrawingGAN、APDrawingGAN++、U-GAT-IT、GANs N' Roses、CelebA。使用时请遵守各自许可证和数据协议。
+#   R o b o t P o r t r a i t A r t  
+ 
