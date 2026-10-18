@@ -21,21 +21,25 @@ const resultCards = computed(() => {
       title: 'Original',
       subtitle: props.job.original_filename || props.job.input_file,
       filename: props.job.input_file,
+      previewKind: 'photo',
     },
     {
       title: 'Prepared',
       subtitle: files.prepared || 'prepared image',
       filename: files.prepared,
+      previewKind: 'photo',
     },
     {
       title: 'Portrait',
       subtitle: files.raster_portrait || `${props.job.method} raster`,
       filename: files.raster_portrait,
+      previewKind: 'portrait',
     },
     {
       title: 'Robot Vector',
       subtitle: files.vector_svg || files.vector_render || 'vector result',
-      filename: files.vector_svg || files.vector_render,
+      filename: files.vector_render || files.vector_svg,
+      previewKind: 'vector',
     },
   ]
 })
@@ -120,6 +124,10 @@ function formatMilliseconds(
             v-if="result.filename"
             :src="fileUrl(result.filename)"
             :alt="`${result.title} result`"
+            :class="{
+              'result-card__image--vector':
+                result.previewKind === 'vector',
+            }"
           >
           <div v-else class="result-card__empty">
             No file

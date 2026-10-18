@@ -1816,3 +1816,15 @@ footer {
     min-height: 320px;
   }
 }
+
+
+/* V5.2: clearer vector thumbnail preview */
+.result-card__image--vector {
+  background: #ffffff;
+  filter: contrast(1.18);
+}
+
+.result-card:has(.result-card__image--vector)
+.result-card__media {
+  background: #ffffff;
+}
