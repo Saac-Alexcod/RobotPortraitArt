@@ -27,6 +27,8 @@ import JobResults from './components/JobResults.vue'
 import StageCard from './components/StageCard.vue'
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+const POLL_INTERVAL_MS = 900
+const POLL_RETRY_MS = 1500
 
 const stages = [
   {
@@ -51,7 +53,7 @@ const stages = [
     step: '04',
     title: '机器人轨迹',
     description: '按规划后的 SVG path 顺序展示机器人落笔、抬笔和连续绘制。',
-    status: 'next' as const,
+    status: 'ready' as const,
   },
 ]
 
@@ -223,7 +225,7 @@ async function pollJob(jobId: string): Promise<void> {
       () => {
         void pollJob(jobId)
       },
-      900,
+      POLL_INTERVAL_MS,
     )
   } catch (error: unknown) {
     pollError.value = (
@@ -231,6 +233,15 @@ async function pollJob(jobId: string): Promise<void> {
         ? error.message
         : '任务状态读取失败。'
     )
+
+    if (createdJob.value?.job_id === jobId) {
+      pollTimer = window.setTimeout(
+        () => {
+          void pollJob(jobId)
+        },
+        POLL_RETRY_MS,
+      )
+    }
   }
 }
 
@@ -263,20 +274,31 @@ function clearSelection(): void {
 
 function useFile(file: File): void {
   resetJobTracking()
+  revokePreview()
+  selectedFile.value = null
   fileError.value = null
   submitError.value = null
 
   if (!file.type.startsWith('image/')) {
     fileError.value = '请选择图片文件。'
+
+    if (fileInput.value) {
+      fileInput.value.value = ''
+    }
+
     return
   }
 
   if (file.size > MAX_UPLOAD_BYTES) {
     fileError.value = '图片超过后端默认的 10 MiB 上传限制。'
+
+    if (fileInput.value) {
+      fileInput.value.value = ''
+    }
+
     return
   }
 
-  revokePreview()
   selectedFile.value = file
   previewUrl.value = URL.createObjectURL(file)
 }
@@ -462,7 +484,7 @@ onBeforeUnmount(() => {
 
       <div class="topbar__badge">
         <span class="status-dot"></span>
-        Web Demo V5
+        Web Demo V6
       </div>
     </header>
 
@@ -477,8 +499,8 @@ onBeforeUnmount(() => {
           </h1>
 
           <p>
-            V5 在完整任务链上加入真实 SVG Path 动画，
-            直观看到 Pen-down、Pen-up 与轨迹规划顺序。
+            V6 在完整任务链上加入真实 SVG Path 动画与 A/B 结果对比，
+            直观看到生成、矢量化与轨迹规划的变化。
           </p>
 
           <div class="hero__actions">
@@ -488,7 +510,7 @@ onBeforeUnmount(() => {
               @click="chooseFile"
             >
               选择图片
-              <span>V5</span>
+              <span>V6</span>
             </button>
 
             <div
@@ -521,7 +543,7 @@ onBeforeUnmount(() => {
                 <span class="canvas-card__label">CENTERLINE PREVIEW</span>
                 <strong>Robot drawing path</strong>
               </div>
-              <span class="canvas-card__counter">431 paths</span>
+              <span class="canvas-card__counter">Benchmark · 431 paths</span>
             </div>
 
             <div class="portrait-canvas">
@@ -792,7 +814,7 @@ onBeforeUnmount(() => {
             <h2>Web Demo 开发路径</h2>
           </div>
           <p>
-            V5 已加入基于真实 SVG path 顺序的机器人绘制模拟。
+            V6 已完成结果对比与真实 SVG path 机器人绘制模拟。
           </p>
         </div>
 
@@ -907,7 +929,7 @@ onBeforeUnmount(() => {
 
     <footer>
       <span>RobotPortraitArt</span>
-      <span>Vue3 + TypeScript Web Demo · V5</span>
+      <span>Vue3 + TypeScript Web Demo · V6</span>
     </footer>
   </div>
 </template>

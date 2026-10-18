@@ -1,11 +1,12 @@
 # RobotPortraitArt Web Demo
 
-V1 establishes the Vue 3 + TypeScript frontend skeleton.
+Vue 3 + TypeScript + Vite frontend for the RobotPortraitArt FastAPI service.
 
 ## Requirements
 
 - Node.js `^20.19.0` or `>=22.12.0`
 - npm 10+
+- RobotPortraitArt Python environment with the Web API dependencies installed
 
 ## Install
 
@@ -26,14 +27,15 @@ npm run build
 Start the FastAPI backend from the repository root:
 
 ```powershell
-$env:ROBOT_PORTRAIT_APD_PYTHON = "/home/winter/.venvs/robotportrait-apd/bin/python"
-
 python -m uvicorn `
   robot_portrait.web.app:app `
   --app-dir src `
   --host 127.0.0.1 `
   --port 8000
 ```
+
+If APDrawingGAN is configured through the WSL backend, set the project-specific
+environment variables required by the backend before starting Uvicorn.
 
 Then start Vite in another terminal:
 
@@ -48,14 +50,21 @@ Open:
 http://127.0.0.1:5173
 ```
 
-Vite proxies `/api/*` to `http://127.0.0.1:8000`, so later frontend API calls can use relative URLs without adding CORS configuration for local development.
+Vite proxies `/api/*` to `http://127.0.0.1:8000`.
 
-## V1 scope
+## Current Web Demo scope
 
-- Vue 3 + TypeScript + Vite scaffold
-- responsive Web Demo shell
-- reusable stage card component
-- `/api` development proxy
-- no backend requests yet
+- live FastAPI health and generator availability
+- image selection, drag-and-drop, validation, and local preview
+- Baseline / APDrawingGAN generator selection based on backend availability
+- Contour / Centerline vector mode selection
+- real `POST /api/jobs` job creation
+- automatic queued / running / completed / failed polling
+- Original / Prepared / Portrait / Robot Vector result gallery
+- Manifest-backed stroke, pen-down, pen-up, vectorization, and total-time metrics
+- PNG / SVG / Manifest downloads
+- interactive A/B result comparison
+- real SVG path robot drawing animation with Pen-down / Pen-up visualization
 
-V2 will add a typed API client for `/api/health` and `/api/methods`.
+The frontend intentionally reuses the existing FastAPI API and does not
+reimplement portrait generation or vectorization logic in the browser.
