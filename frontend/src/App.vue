@@ -1,4 +1,18 @@
 <script setup lang="ts">
+import {
+  computed,
+  onMounted,
+  ref,
+} from 'vue'
+
+import {
+  getHealth,
+  getMethods,
+} from './api/client'
+import type {
+  HealthResponse,
+  MethodStatus,
+} from './api/types'
 import StageCard from './components/StageCard.vue'
 
 const stages = [
@@ -28,12 +42,111 @@ const stages = [
   },
 ]
 
-const backendCapabilities = [
-  'FastAPI job API',
-  'Baseline / APDrawingGAN',
-  'Contour / Centerline',
-  'WSL + CUDA inference',
-]
+const health = ref<HealthResponse | null>(null)
+const methods = ref<MethodStatus[]>([])
+const isCheckingBackend = ref(true)
+const backendError = ref<string | null>(null)
+
+const backendOnline = computed(
+  () => (
+    !backendError.value
+    && health.value?.status === 'ok'
+  ),
+)
+
+const backendLabel = computed(() => {
+  if (isCheckingBackend.value) {
+    return '正在连接 FastAPI Backend'
+  }
+
+  if (backendOnline.value) {
+    return 'FastAPI Backend 在线'
+  }
+
+  return 'FastAPI Backend 未连接'
+})
+
+const backendCapabilities = computed(() => {
+  if (isCheckingBackend.value) {
+    return [
+      'Checking /api/health',
+      'Loading /api/methods',
+      'Contour / Centerline',
+    ]
+  }
+
+  if (backendError.value) {
+    return [
+      'FastAPI unavailable',
+      'Vite /api proxy ready',
+      'Retry available',
+    ]
+  }
+
+  return [
+    ...methods.value.map(
+      (method) => (
+        `${methodDisplayName(method.name)} ${
+          method.available ? '可用' : '不可用'
+        }`
+      ),
+    ),
+    'Contour / Centerline',
+  ]
+})
+
+function methodDisplayName(name: string): string {
+  if (name === 'baseline') {
+    return 'Baseline'
+  }
+
+  if (name === 'apdrawinggan') {
+    return 'APDrawingGAN'
+  }
+
+  return name
+}
+
+function backendDetail(method: MethodStatus): string {
+  if (method.available) {
+    return '后端 preflight 通过，可以用于生成任务。'
+  }
+
+  return method.reason || '当前生成器不可用。'
+}
+
+async function loadBackendStatus(): Promise<void> {
+  isCheckingBackend.value = true
+  backendError.value = null
+
+  try {
+    const [
+      healthResponse,
+      methodsResponse,
+    ] = await Promise.all([
+      getHealth(),
+      getMethods(),
+    ])
+
+    health.value = healthResponse
+    methods.value = methodsResponse.methods
+  } catch (error: unknown) {
+    health.value = null
+    methods.value = []
+
+    backendError.value = (
+      error instanceof Error
+        ? error.message
+        : 'Unknown backend error'
+    )
+  } finally {
+    isCheckingBackend.value = false
+  }
+}
+
+onMounted(() => {
+  void loadBackendStatus()
+})
 </script>
 
 <template>
@@ -67,7 +180,7 @@ const backendCapabilities = [
 
       <div class="topbar__badge">
         <span class="status-dot"></span>
-        Web Demo V1
+        Web Demo V2
       </div>
     </header>
 
@@ -92,9 +205,15 @@ const backendCapabilities = [
               <span>V3 开放</span>
             </button>
 
-            <div class="backend-chip">
+            <div
+              class="backend-chip"
+              :class="{
+                'backend-chip--error': !isCheckingBackend && !backendOnline,
+                'backend-chip--loading': isCheckingBackend,
+              }"
+            >
               <span class="backend-chip__pulse"></span>
-              FastAPI Backend 已完成
+              {{ backendLabel }}
             </div>
           </div>
 
@@ -167,7 +286,10 @@ const backendCapabilities = [
             <span>PIPELINE</span>
             <h2>Web Demo 开发路径</h2>
           </div>
-          <p>V1 先建立稳定、可扩展的 Vue3 + TypeScript UI 骨架。</p>
+          <p>
+            V2 将 Vue 页面连接到真实 FastAPI，
+            读取服务健康状态与 Generator 能力。
+          </p>
         </div>
 
         <div class="stage-grid">
@@ -179,16 +301,116 @@ const backendCapabilities = [
         </div>
       </section>
 
+      <section class="live-status-section">
+        <div class="section-heading">
+          <div>
+            <span>LIVE BACKEND</span>
+            <h2>真实后端状态</h2>
+          </div>
+
+          <button
+            class="button button--secondary"
+            type="button"
+            :disabled="isCheckingBackend"
+            @click="loadBackendStatus"
+          >
+            {{ isCheckingBackend ? '检查中…' : '重新检查' }}
+          </button>
+        </div>
+
+        <div class="live-grid">
+          <article class="api-card">
+            <div class="api-card__header">
+              <code>GET /api/health</code>
+              <span
+                class="api-status"
+                :class="{
+                  'api-status--ok': backendOnline,
+                  'api-status--error': !isCheckingBackend && !backendOnline,
+                }"
+              >
+                {{
+                  isCheckingBackend
+                    ? 'Checking'
+                    : backendOnline
+                      ? 'Online'
+                      : 'Offline'
+                }}
+              </span>
+            </div>
+
+            <dl class="api-kv">
+              <div>
+                <dt>status</dt>
+                <dd>{{ health?.status ?? '—' }}</dd>
+              </div>
+              <div>
+                <dt>service</dt>
+                <dd>{{ health?.service ?? '—' }}</dd>
+              </div>
+            </dl>
+
+            <p v-if="backendError" class="api-error">
+              {{ backendError }}
+            </p>
+          </article>
+
+          <article class="api-card">
+            <div class="api-card__header">
+              <code>GET /api/methods</code>
+              <span class="api-status">
+                {{ methods.length }} methods
+              </span>
+            </div>
+
+            <div v-if="isCheckingBackend" class="api-empty">
+              正在读取 GeneratorStatus…
+            </div>
+
+            <div
+              v-else-if="backendError"
+              class="api-empty"
+            >
+              后端连接成功后将在这里显示真实 Generator 状态。
+            </div>
+
+            <div v-else class="method-list">
+              <div
+                v-for="method in methods"
+                :key="method.name"
+                class="method-row"
+              >
+                <div>
+                  <strong>{{ methodDisplayName(method.name) }}</strong>
+                  <p>{{ backendDetail(method) }}</p>
+                </div>
+
+                <span
+                  class="method-badge"
+                  :class="{
+                    'method-badge--available': method.available,
+                    'method-badge--unavailable': !method.available,
+                  }"
+                >
+                  {{ method.available ? 'Available' : 'Unavailable' }}
+                </span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section class="architecture-section">
         <div class="architecture-card">
           <div class="architecture-card__copy">
-            <span class="architecture-card__eyebrow">V1 SCOPE</span>
-            <h2>前后端边界先搭清楚</h2>
+            <span class="architecture-card__eyebrow">V2 SCOPE</span>
+            <h2>前后端已经开始真实联调</h2>
             <p>
-              当前页面只负责 UI 骨架，不提前塞入业务状态管理。
-              Vite 开发服务器已经预留 <code>/api</code> proxy，
-              下一步 V2 直接接入 <code>/api/health</code> 和
-              <code>/api/methods</code>。
+              Vue 通过 Vite 的 <code>/api</code> proxy 调用 FastAPI。
+              本阶段只读取 <code>/api/health</code> 与
+              <code>/api/methods</code>，不提交生成任务。
+              下一步 V3 再加入图片上传、参数选择与
+              <code>POST /api/jobs</code>。
             </p>
           </div>
 
@@ -198,7 +420,10 @@ const backendCapabilities = [
               <strong>Frontend</strong>
             </div>
             <div class="flow-arrow">→</div>
-            <div class="flow-node">
+            <div
+              class="flow-node"
+              :class="{ 'flow-node--online': backendOnline }"
+            >
               <span>/api</span>
               <strong>FastAPI</strong>
             </div>
@@ -214,7 +439,7 @@ const backendCapabilities = [
 
     <footer>
       <span>RobotPortraitArt</span>
-      <span>Vue3 + TypeScript Web Demo · V1</span>
+      <span>Vue3 + TypeScript Web Demo · V2</span>
     </footer>
   </div>
 </template>
