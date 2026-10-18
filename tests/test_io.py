@@ -12,20 +12,24 @@ sys.path.insert(
     str(ROOT / "src"),
 )
 
-sys.path.insert(
-    0,
-    str(ROOT / "scripts"),
+from robot_portrait.io import (
+    read_image,
+    write_image,
 )
 
-from robot_portrait.io import read_image, write_image
+from robot_portrait.preprocessing import (
+    load_haar_detector,
+)
+
 from robot_portrait.vectorize import (
     _opencv_svg_to_raster,
     raster_to_svg,
 )
-from prepare_image import _load_haar_detector
 
 
-def test_unicode_image_io_roundtrip(tmp_path):
+def test_unicode_image_io_roundtrip(
+    tmp_path,
+):
     path = (
         tmp_path
         / "测试 图像.png"
@@ -128,13 +132,12 @@ def test_haar_detector_loads_from_unicode_path(
     )
 
     detector = (
-        _load_haar_detector(
+        load_haar_detector(
             target
         )
     )
 
     assert detector is not None
-
     assert not detector.empty()
 
 
