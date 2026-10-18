@@ -1,1 +1,8 @@
-__all__ = ["lineart", "vectorize", "metrics"]
+__all__ = [
+    "io",
+    "preprocessing",
+    "lineart",
+    "vectorize",
+    "metrics",
+    "pipeline",
+]
