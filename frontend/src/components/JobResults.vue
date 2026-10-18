@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import { getJobFileUrl } from '../api/client'
+import DrawingSimulation from './DrawingSimulation.vue'
 import type {
   JobStatusResponse,
   ManifestResponse,
@@ -168,6 +169,12 @@ function formatMilliseconds(
     <div v-if="!manifest" class="manifest-loading">
       Job 已完成，正在读取 manifest 指标…
     </div>
+
+    <DrawingSimulation
+      v-if="job.result_files.vector_svg"
+      :job-id="job.job_id"
+      :filename="job.result_files.vector_svg"
+    />
 
     <div class="download-row">
       <span>DOWNLOAD</span>

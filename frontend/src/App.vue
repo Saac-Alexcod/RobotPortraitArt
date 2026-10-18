@@ -462,7 +462,7 @@ onBeforeUnmount(() => {
 
       <div class="topbar__badge">
         <span class="status-dot"></span>
-        Web Demo V4
+        Web Demo V5
       </div>
     </header>
 
@@ -473,12 +473,12 @@ onBeforeUnmount(() => {
 
           <h1>
             上传肖像，
-            <span>从任务提交一直看到最终绘制结果。</span>
+            <span>看机器人按照真实轨迹逐笔完成肖像。</span>
           </h1>
 
           <p>
-            V4 在真实任务提交之后自动轮询 Job 状态，
-            并直接加载 PNG、SVG 与 Manifest 指标。
+            V5 在完整任务链上加入真实 SVG Path 动画，
+            直观看到 Pen-down、Pen-up 与轨迹规划顺序。
           </p>
 
           <div class="hero__actions">
@@ -488,7 +488,7 @@ onBeforeUnmount(() => {
               @click="chooseFile"
             >
               选择图片
-              <span>V4</span>
+              <span>V5</span>
             </button>
 
             <div
@@ -792,7 +792,7 @@ onBeforeUnmount(() => {
             <h2>Web Demo 开发路径</h2>
           </div>
           <p>
-            V4 已经完成任务提交、自动轮询、结果展示与文件下载。
+            V5 已加入基于真实 SVG path 顺序的机器人绘制模拟。
           </p>
         </div>
 
@@ -907,7 +907,7 @@ onBeforeUnmount(() => {
 
     <footer>
       <span>RobotPortraitArt</span>
-      <span>Vue3 + TypeScript Web Demo · V3</span>
+      <span>Vue3 + TypeScript Web Demo · V5</span>
     </footer>
   </div>
 </template>
