@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import platform
 import random
+import re
 from time import perf_counter_ns
 from typing import Any, Mapping
 
@@ -13,10 +14,22 @@ import cv2
 import numpy as np
 import yaml
 
+from .generators import (
+    BaselineGenerator,
+    GeneratorRequest,
+    GeneratorUnavailableError,
+    PortraitGenerator,
+    PreprocessTransform,
+)
 from .io import write_image
-from .lineart import portrait_lineart
-from .preprocessing import PreprocessResult, preprocess_portrait
-from .vectorize import raster_to_svg, svg_to_raster
+from .preprocessing import (
+    PreprocessResult,
+    preprocess_portrait,
+)
+from .vectorize import (
+    raster_to_svg,
+    svg_to_raster,
+)
 
 
 class PipelineStage(str, Enum):
@@ -29,7 +42,7 @@ class PipelineStage(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class PipelineConfig:
-    """GenerationPipeline 使用的统一配置。"""
+    """Configuration used by GenerationPipeline."""
 
     preprocess_size: int = 512
     seed: int = 42
@@ -150,7 +163,7 @@ class PipelineConfig:
 
 @dataclass(frozen=True, slots=True)
 class PipelineResult:
-    """一次完整 Pipeline 执行产生的结果。"""
+    """Paths and metadata produced by one completed run."""
 
     input_path: Path
     output_dir: Path
@@ -164,6 +177,7 @@ class PipelineResult:
     manifest_path: Path
 
     preprocessing: dict[str, Any]
+    generation: dict[str, Any]
     vectorization: dict[str, Any]
     rasterization: dict[str, Any]
 
@@ -209,6 +223,9 @@ class PipelineResult:
             "preprocessing":
                 self.preprocessing,
 
+            "generation":
+                self.generation,
+
             "vectorization":
                 self.vectorization,
 
@@ -238,26 +255,76 @@ class PipelineResult:
 
 
 class GenerationPipeline:
-    """端到端肖像生成 Pipeline。
+    """End-to-end pipeline with pluggable portrait generators."""
 
-    当前首先接入确定性的 OpenCV baseline。
-
-    之后 APDrawingGAN、APDrawingGAN++ 或其他生成模型
-    可以继续接入相同的 run() 协议，而不要求 CLI、
-    Web API 或前端改变调用方式。
-    """
-
-    SUPPORTED_METHODS = frozenset(
-        {
-            "baseline",
-        }
+    _METHOD_PATTERN = re.compile(
+        r"^[a-z0-9][a-z0-9_-]*$"
     )
 
     def __init__(
         self,
         config: PipelineConfig,
+        *,
+        generators: Mapping[
+            str,
+            PortraitGenerator,
+        ] | None = None,
     ):
         self.config = config
+
+        if generators is None:
+            generators = {
+                BaselineGenerator.name:
+                    BaselineGenerator(
+                        config.baseline
+                    ),
+            }
+
+        registry: dict[
+            str,
+            PortraitGenerator,
+        ] = {}
+
+        for name, generator in generators.items():
+            if (
+                not isinstance(
+                    name,
+                    str,
+                )
+                or not self
+                ._METHOD_PATTERN
+                .fullmatch(name)
+            ):
+                raise ValueError(
+                    "generator 名称必须匹配 "
+                    "^[a-z0-9][a-z0-9_-]*$"
+                )
+
+            if not isinstance(
+                generator,
+                PortraitGenerator,
+            ):
+                raise TypeError(
+                    f"generator '{name}' "
+                    "必须实现 PortraitGenerator"
+                )
+
+            if generator.name != name:
+                raise ValueError(
+                    f"generator 注册名 '{name}' "
+                    f"与实现名称 "
+                    f"'{generator.name}' 不一致"
+                )
+
+            registry[name] = generator
+
+        if not registry:
+            raise ValueError(
+                "至少需要注册一个 "
+                "portrait generator"
+            )
+
+        self._generators = registry
 
     @classmethod
     def from_yaml(
@@ -266,6 +333,10 @@ class GenerationPipeline:
         *,
         preprocess_size: int = 512,
         seed: int = 42,
+        generators: Mapping[
+            str,
+            PortraitGenerator,
+        ] | None = None,
     ) -> "GenerationPipeline":
         return cls(
             PipelineConfig.from_yaml(
@@ -274,8 +345,39 @@ class GenerationPipeline:
                     preprocess_size
                 ),
                 seed=seed,
+            ),
+            generators=generators,
+        )
+
+    @property
+    def supported_methods(
+        self,
+    ) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                self._generators
             )
         )
+
+    def generator_statuses(
+        self,
+    ) -> dict[
+        str,
+        dict[str, Any],
+    ]:
+        """JSON-ready generator preflight information."""
+
+        return {
+            name:
+                generator
+                .status()
+                .to_metadata()
+
+            for name, generator
+            in sorted(
+                self._generators.items()
+            )
+        }
 
     @staticmethod
     def _elapsed_ms(
@@ -295,8 +397,6 @@ class GenerationPipeline:
         path: Path,
         payload: dict[str, Any],
     ) -> None:
-        """先写临时文件，再替换正式 Manifest。"""
-
         path.parent.mkdir(
             parents=True,
             exist_ok=True,
@@ -330,26 +430,74 @@ class GenerationPipeline:
             self.config.seed
         )
 
+    def _generator_for(
+        self,
+        method: str,
+    ) -> PortraitGenerator:
+        try:
+            return self._generators[
+                method
+            ]
+
+        except KeyError as exc:
+            supported = ", ".join(
+                self.supported_methods
+            )
+
+            raise ValueError(
+                f"不支持的生成方法：{method}。"
+                f"当前支持：{supported}"
+            ) from exc
+
+    def _managed_paths(
+        self,
+        output_dir: Path,
+    ) -> tuple[Path, ...]:
+        paths: list[Path] = [
+            output_dir
+            / "prepared.png",
+
+            output_dir
+            / "manifest.json",
+
+            output_dir
+            / "manifest.json.tmp",
+        ]
+
+        for name in self.supported_methods:
+            paths.extend(
+                [
+                    output_dir
+                    / f"{name}.png",
+
+                    output_dir
+                    / f"{name}.svg",
+
+                    output_dir
+                    / (
+                        f"{name}"
+                        "_vector_render.png"
+                    ),
+                ]
+            )
+
+        return tuple(paths)
+
     def run(
         self,
         input_path: str | Path,
         output_dir: str | Path,
         *,
         method: str = "baseline",
+        auxiliary_inputs: Mapping[
+            str,
+            str | Path,
+        ]
+        | None = None,
     ) -> PipelineResult:
-        """运行一次完整的肖像生成流程。"""
-
-        if method not in self.SUPPORTED_METHODS:
-            supported = ", ".join(
-                sorted(
-                    self.SUPPORTED_METHODS
-                )
-            )
-
-            raise ValueError(
-                f"不支持的生成方法：{method}。"
-                f"当前支持：{supported}"
-            )
+        generator = self._generator_for(
+            method
+        )
 
         input_path = Path(
             input_path
@@ -381,7 +529,10 @@ class GenerationPipeline:
 
         vector_render_path = (
             output_dir
-            / f"{method}_vector_render.png"
+            / (
+                f"{method}"
+                "_vector_render.png"
+            )
         )
 
         manifest_path = (
@@ -389,21 +540,28 @@ class GenerationPipeline:
             / "manifest.json"
         )
 
-        # 如果重复使用同一个输出目录，
-        # 新一次运行失败时绝不能留下上一次运行的旧成功结果。
+        # Reusing an output directory must never expose stale
+        # managed artifacts from an earlier successful run.
         for stale_path in (
-            prepared_path,
-            raster_path,
-            svg_path,
-            vector_render_path,
-            manifest_path,
-            manifest_path.with_name(
-                manifest_path.name
-                + ".tmp"
-            ),
+            self._managed_paths(
+                output_dir
+            )
         ):
             if stale_path.exists():
                 stale_path.unlink()
+
+        status = generator.status()
+
+        if not status.available:
+            reason = (
+                status.reason
+                or "未提供不可用原因"
+            )
+
+            raise GeneratorUnavailableError(
+                f"生成器 '{method}' "
+                f"当前不可用：{reason}"
+            )
 
         self._seed()
 
@@ -451,13 +609,68 @@ class GenerationPipeline:
         # Stage 2: portrait generation
         # --------------------------------------------------
 
+        normalized_auxiliary_inputs = {
+            str(name): Path(path)
+            for name, path
+            in (
+                auxiliary_inputs
+                or {}
+            ).items()
+        }
+
         stage_start = (
             perf_counter_ns()
         )
 
-        raster = portrait_lineart(
-            preprocess_result.image,
-            **self.config.baseline,
+        generation_output = (
+            generator.generate(
+                GeneratorRequest(
+                    prepared_image=(
+                        preprocess_result.image
+                    ),
+
+                    input_path=(
+                        input_path
+                    ),
+
+                    prepared_path=(
+                        prepared_path
+                    ),
+
+                    output_dir=(
+                        output_dir
+                    ),
+
+                    seed=(
+                        self.config.seed
+                    ),
+
+                    preprocess_transform=(
+                        PreprocessTransform(
+                            original_size=(
+                                preprocess_result
+                                .original_size
+                            ),
+                            output_size=(
+                                preprocess_result
+                                .output_size
+                            ),
+                            crop_box=(
+                                preprocess_result
+                                .crop_box
+                            ),
+                        )
+                    ),
+
+                    auxiliary_inputs=(
+                        normalized_auxiliary_inputs
+                    ),
+                )
+            )
+        )
+
+        raster = (
+            generation_output.image
         )
 
         write_image(
@@ -474,7 +687,7 @@ class GenerationPipeline:
         )
 
         # --------------------------------------------------
-        # Stage 3: SVG vectorization
+        # Stage 3: vectorization
         # --------------------------------------------------
 
         stage_start = (
@@ -540,8 +753,27 @@ class GenerationPipeline:
             )
         )
 
-        warnings = tuple(
-            preprocess_result.warnings
+        generation = {
+            "name":
+                generator.name,
+
+            "status":
+                status.to_metadata(),
+
+            "metadata":
+                dict(
+                    generation_output.metadata
+                ),
+        }
+
+        warnings = (
+            tuple(
+                preprocess_result.warnings
+            )
+            +
+            tuple(
+                generation_output.warnings
+            )
         )
 
         result = PipelineResult(
@@ -572,6 +804,10 @@ class GenerationPipeline:
 
             preprocessing=(
                 preprocessing
+            ),
+
+            generation=(
+                generation
             ),
 
             vectorization=(
