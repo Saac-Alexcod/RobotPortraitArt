@@ -78,3 +78,9 @@ def default_generator_statuses() -> dict[str, dict[str, object]]:
     """Return JSON-ready status metadata for the default web generators."""
 
     return build_default_pipeline().generator_statuses()
+
+
+def default_supported_methods() -> tuple[str, ...]:
+    """Return registered method names without running generator preflight."""
+
+    return build_default_pipeline().supported_methods
