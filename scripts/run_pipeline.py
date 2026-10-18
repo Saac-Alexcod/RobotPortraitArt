@@ -3,6 +3,7 @@
 from pathlib import Path
 import argparse
 import json
+import os
 import sys
 
 
@@ -16,8 +17,14 @@ sys.path.insert(
 )
 
 
+from robot_portrait.generators import (
+    APDrawingGANGenerator,
+    APDrawingGANGeneratorConfig,
+    BaselineGenerator,
+)
 from robot_portrait.pipeline import (
     GenerationPipeline,
+    PipelineConfig,
 )
 
 
@@ -73,6 +80,75 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--landmark",
+        help=(
+            "APDrawingGAN 五点 landmark 文件；"
+            "坐标对应原始输入照片"
+        ),
+    )
+
+    parser.add_argument(
+        "--mask",
+        help=(
+            "APDrawingGAN 背景 mask PNG；"
+            "尺寸对应原始输入照片"
+        ),
+    )
+
+    parser.add_argument(
+        "--apd-repo",
+        default=str(
+            ROOT
+            / "third_party"
+            / "APDrawingGAN"
+        ),
+        help="APDrawingGAN 源码目录",
+    )
+
+    parser.add_argument(
+        "--apd-distro",
+        default="Ubuntu-22.04",
+        help="运行 APDrawingGAN 的 WSL 发行版",
+    )
+
+    parser.add_argument(
+        "--apd-python",
+        default=os.environ.get(
+            "ROBOT_PORTRAIT_APD_PYTHON",
+            "python3",
+        ),
+        help=(
+            "WSL 内 APDrawingGAN Python；"
+            "也可通过 ROBOT_PORTRAIT_APD_PYTHON 设置"
+        ),
+    )
+
+    parser.add_argument(
+        "--apd-epoch",
+        default="300",
+        help="APDrawingGAN checkpoint epoch",
+    )
+
+    parser.add_argument(
+        "--apd-gpu-ids",
+        default="0",
+        help="传给 APDrawingGAN --gpu_ids 的值",
+    )
+
+    parser.add_argument(
+        "--apd-timeout",
+        type=float,
+        default=180.0,
+        help="APDrawingGAN 单张推理超时秒数",
+    )
+
+    parser.add_argument(
+        "--apd-keep-work-dir",
+        action="store_true",
+        help="成功后保留 .apdrawinggan_work 调试目录",
+    )
+
+    parser.add_argument(
         "--list-methods",
         action="store_true",
         help=(
@@ -83,13 +159,43 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    pipeline = (
-        GenerationPipeline
-        .from_yaml(
-            args.config,
-            preprocess_size=args.size,
-            seed=args.seed,
-        )
+    config = PipelineConfig.from_yaml(
+        args.config,
+        preprocess_size=args.size,
+        seed=args.seed,
+    )
+
+    generators = {
+        BaselineGenerator.name:
+            BaselineGenerator(
+                config.baseline
+            ),
+
+        APDrawingGANGenerator.name:
+            APDrawingGANGenerator(
+                APDrawingGANGeneratorConfig(
+                    repo=Path(
+                        args.apd_repo
+                    ),
+                    distro=args.apd_distro,
+                    python_command=(
+                        args.apd_python
+                    ),
+                    epoch=args.apd_epoch,
+                    gpu_ids=args.apd_gpu_ids,
+                    timeout_seconds=(
+                        args.apd_timeout
+                    ),
+                    keep_work_dir=(
+                        args.apd_keep_work_dir
+                    ),
+                )
+            ),
+    }
+
+    pipeline = GenerationPipeline(
+        config,
+        generators=generators,
     )
 
     if args.list_methods:
@@ -113,10 +219,55 @@ def main() -> None:
             "和 --output-dir"
         )
 
+    if (
+        args.method
+        == "apdrawinggan"
+        and args.size != 512
+    ):
+        parser.error(
+            "--method apdrawinggan 当前要求 "
+            "--size 512"
+        )
+
+    if (
+        args.method
+        == "apdrawinggan"
+        and (
+            not args.landmark
+            or not args.mask
+        )
+    ):
+        parser.error(
+            "--method apdrawinggan 目前需要同时提供 "
+            "--landmark 和 --mask"
+        )
+
+    auxiliary_inputs: dict[
+        str,
+        Path,
+    ] = {}
+
+    if args.landmark:
+        auxiliary_inputs[
+            "landmark"
+        ] = Path(
+            args.landmark
+        )
+
+    if args.mask:
+        auxiliary_inputs[
+            "mask"
+        ] = Path(
+            args.mask
+        )
+
     result = pipeline.run(
         args.input,
         args.output_dir,
         method=args.method,
+        auxiliary_inputs=(
+            auxiliary_inputs
+        ),
     )
 
     manifest = json.loads(

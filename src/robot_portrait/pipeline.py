@@ -19,6 +19,7 @@ from .generators import (
     GeneratorRequest,
     GeneratorUnavailableError,
     PortraitGenerator,
+    PreprocessTransform,
 )
 from .io import write_image
 from .preprocessing import (
@@ -488,6 +489,11 @@ class GenerationPipeline:
         output_dir: str | Path,
         *,
         method: str = "baseline",
+        auxiliary_inputs: Mapping[
+            str,
+            str | Path,
+        ]
+        | None = None,
     ) -> PipelineResult:
         generator = self._generator_for(
             method
@@ -603,6 +609,15 @@ class GenerationPipeline:
         # Stage 2: portrait generation
         # --------------------------------------------------
 
+        normalized_auxiliary_inputs = {
+            str(name): Path(path)
+            for name, path
+            in (
+                auxiliary_inputs
+                or {}
+            ).items()
+        }
+
         stage_start = (
             perf_counter_ns()
         )
@@ -628,6 +643,27 @@ class GenerationPipeline:
 
                     seed=(
                         self.config.seed
+                    ),
+
+                    preprocess_transform=(
+                        PreprocessTransform(
+                            original_size=(
+                                preprocess_result
+                                .original_size
+                            ),
+                            output_size=(
+                                preprocess_result
+                                .output_size
+                            ),
+                            crop_box=(
+                                preprocess_result
+                                .crop_box
+                            ),
+                        )
+                    ),
+
+                    auxiliary_inputs=(
+                        normalized_auxiliary_inputs
                     ),
                 )
             )

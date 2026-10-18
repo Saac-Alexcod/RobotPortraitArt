@@ -4,6 +4,7 @@ from .base import (
     GeneratorStatus,
     GeneratorUnavailableError,
     PortraitGenerator,
+    PreprocessTransform,
 )
 from .baseline import BaselineGenerator
 from .apdrawinggan import (
@@ -12,7 +13,10 @@ from .apdrawinggan import (
     APDrawingGANPreflightReport,
     PreflightCheck,
 )
-
+from .apdrawinggan_backend import (
+    APDrawingGANGenerator,
+    APDrawingGANGeneratorConfig,
+)
 
 __all__ = [
     "PortraitGenerator",
@@ -20,7 +24,10 @@ __all__ = [
     "GeneratorOutput",
     "GeneratorStatus",
     "GeneratorUnavailableError",
+    "PreprocessTransform",
     "BaselineGenerator",
+    "APDrawingGANGenerator",
+    "APDrawingGANGeneratorConfig",
     "APDrawingGANPreflight",
     "APDrawingGANPreflightConfig",
     "APDrawingGANPreflightReport",
