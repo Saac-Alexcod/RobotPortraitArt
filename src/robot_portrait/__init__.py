@@ -4,5 +4,6 @@ __all__ = [
     "lineart",
     "vectorize",
     "metrics",
+    "generators",
     "pipeline",
 ]

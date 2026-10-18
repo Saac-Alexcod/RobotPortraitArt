@@ -24,33 +24,27 @@ from robot_portrait.pipeline import (
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "运行统一的人像预处理、"
-            "线稿生成、SVG 矢量化"
-            "与回栅格流程。"
+            "运行统一的人像预处理、生成、"
+            "SVG 矢量化与回栅格流程。"
         )
     )
 
     parser.add_argument(
         "--input",
-        required=True,
         help="输入肖像照片路径",
     )
 
     parser.add_argument(
         "--output-dir",
-        required=True,
         help="本次运行的输出目录",
     )
 
     parser.add_argument(
         "--method",
         default="baseline",
-        choices=[
-            "baseline",
-        ],
         help=(
-            "生成方法；"
-            "当前已接入 baseline"
+            "生成方法；可用方法由 "
+            "GenerationPipeline 注册表决定"
         ),
     )
 
@@ -78,6 +72,15 @@ def main() -> None:
         help="随机种子",
     )
 
+    parser.add_argument(
+        "--list-methods",
+        action="store_true",
+        help=(
+            "列出当前已注册生成器"
+            "及可用状态后退出"
+        ),
+    )
+
     args = parser.parse_args()
 
     pipeline = (
@@ -88,6 +91,27 @@ def main() -> None:
             seed=args.seed,
         )
     )
+
+    if args.list_methods:
+        print(
+            json.dumps(
+                pipeline.generator_statuses(),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+
+        return
+
+    if (
+        not args.input
+        or not args.output_dir
+    ):
+        parser.error(
+            "未使用 --list-methods 时"
+            "必须同时提供 --input "
+            "和 --output-dir"
+        )
 
     result = pipeline.run(
         args.input,
@@ -107,12 +131,17 @@ def main() -> None:
     )
 
     print(
+        f"[完成] 生成器："
+        f"{result.method}"
+    )
+
+    print(
         f"[完成] 预处理："
         f"{result.prepared_path}"
     )
 
     print(
-        f"[完成] 栅格线稿："
+        f"[完成] 栅格肖像："
         f"{result.raster_path}"
     )
 
@@ -138,10 +167,7 @@ def main() -> None:
                 f"{name}="
                 f"{value:.3f}"
             )
-            for (
-                name,
-                value,
-            )
+            for name, value
             in manifest[
                 "timings_ms"
             ].items()
