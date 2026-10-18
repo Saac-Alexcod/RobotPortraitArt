@@ -6,4 +6,5 @@ __all__ = [
     "metrics",
     "generators",
     "pipeline",
+    "apdrawinggan_preprocess",
 ]
