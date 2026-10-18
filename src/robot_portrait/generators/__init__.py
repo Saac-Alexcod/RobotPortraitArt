@@ -17,6 +17,10 @@ from .apdrawinggan_backend import (
     APDrawingGANGenerator,
     APDrawingGANGeneratorConfig,
 )
+from .apdrawinggan_auto import (
+    APDrawingGANAutoPreprocessConfig,
+    APDrawingGANAutoPreprocessGenerator,
+)
 
 __all__ = [
     "PortraitGenerator",
@@ -28,6 +32,8 @@ __all__ = [
     "BaselineGenerator",
     "APDrawingGANGenerator",
     "APDrawingGANGeneratorConfig",
+    "APDrawingGANAutoPreprocessGenerator",
+    "APDrawingGANAutoPreprocessConfig",
     "APDrawingGANPreflight",
     "APDrawingGANPreflightConfig",
     "APDrawingGANPreflightReport",
