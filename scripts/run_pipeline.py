@@ -18,6 +18,8 @@ sys.path.insert(
 
 
 from robot_portrait.generators import (
+    APDrawingGANAutoPreprocessConfig,
+    APDrawingGANAutoPreprocessGenerator,
     APDrawingGANGenerator,
     APDrawingGANGeneratorConfig,
     BaselineGenerator,
@@ -82,16 +84,48 @@ def main() -> None:
     parser.add_argument(
         "--landmark",
         help=(
-            "APDrawingGAN 五点 landmark 文件；"
-            "坐标对应原始输入照片"
+            "可选 APDrawingGAN 五点 landmark；"
+            "与 --mask 同时提供时使用手动模式，"
+            "两者都省略时自动检测/对齐/分割"
         ),
     )
 
     parser.add_argument(
         "--mask",
         help=(
-            "APDrawingGAN 背景 mask PNG；"
-            "尺寸对应原始输入照片"
+            "可选 APDrawingGAN 人像 mask PNG；"
+            "与 --landmark 同时提供时使用手动模式"
+        ),
+    )
+
+    parser.add_argument(
+        "--apd-yunet-model",
+        default=str(
+            ROOT
+            / "third_party"
+            / "models"
+            / "face_detection_yunet_2023mar.onnx"
+        ),
+        help=(
+            "APDrawingGAN 自动预处理使用的 "
+            "YuNet ONNX 模型"
+        ),
+    )
+
+    parser.add_argument(
+        "--apd-humanseg-model",
+        default=str(
+            ROOT
+            / "third_party"
+            / "models"
+            / (
+                "human_segmentation_"
+                "pphumanseg_2023mar.onnx"
+            )
+        ),
+        help=(
+            "APDrawingGAN 自动预处理使用的 "
+            "PPHumanSeg ONNX 模型"
         ),
     )
 
@@ -165,32 +199,49 @@ def main() -> None:
         seed=args.seed,
     )
 
+    apdrawinggan_backend = (
+        APDrawingGANGenerator(
+            APDrawingGANGeneratorConfig(
+                repo=Path(
+                    args.apd_repo
+                ),
+                distro=args.apd_distro,
+                python_command=(
+                    args.apd_python
+                ),
+                epoch=args.apd_epoch,
+                gpu_ids=args.apd_gpu_ids,
+                timeout_seconds=(
+                    args.apd_timeout
+                ),
+                keep_work_dir=(
+                    args.apd_keep_work_dir
+                ),
+            )
+        )
+    )
+
+    apdrawinggan_generator = (
+        APDrawingGANAutoPreprocessGenerator(
+            apdrawinggan_backend,
+            APDrawingGANAutoPreprocessConfig(
+                yunet_model=Path(
+                    args.apd_yunet_model
+                ),
+                humanseg_model=Path(
+                    args.apd_humanseg_model
+                ),
+            ),
+        )
+    )
+
     generators = {
         BaselineGenerator.name:
             BaselineGenerator(
                 config.baseline
             ),
-
-        APDrawingGANGenerator.name:
-            APDrawingGANGenerator(
-                APDrawingGANGeneratorConfig(
-                    repo=Path(
-                        args.apd_repo
-                    ),
-                    distro=args.apd_distro,
-                    python_command=(
-                        args.apd_python
-                    ),
-                    epoch=args.apd_epoch,
-                    gpu_ids=args.apd_gpu_ids,
-                    timeout_seconds=(
-                        args.apd_timeout
-                    ),
-                    keep_work_dir=(
-                        args.apd_keep_work_dir
-                    ),
-                )
-            ),
+        APDrawingGANAutoPreprocessGenerator.name:
+            apdrawinggan_generator,
     }
 
     pipeline = GenerationPipeline(
@@ -233,13 +284,14 @@ def main() -> None:
         args.method
         == "apdrawinggan"
         and (
-            not args.landmark
-            or not args.mask
+            bool(args.landmark)
+            != bool(args.mask)
         )
     ):
         parser.error(
-            "--method apdrawinggan 目前需要同时提供 "
-            "--landmark 和 --mask"
+            "--method apdrawinggan 的手动模式"
+            "必须同时提供 --landmark 和 --mask；"
+            "若需要自动预处理，请两者都省略"
         )
 
     auxiliary_inputs: dict[
@@ -310,6 +362,60 @@ def main() -> None:
         f"[完成] Manifest："
         f"{result.manifest_path}"
     )
+
+    apd_preprocess = (
+        manifest
+        .get(
+            "generation",
+            {}
+        )
+        .get(
+            "metadata",
+            {}
+        )
+        .get(
+            "apdrawinggan_preprocess"
+        )
+    )
+
+    if isinstance(
+        apd_preprocess,
+        dict,
+    ):
+        print(
+            "[APDrawingGAN 预处理] "
+            f"mode="
+            f"{apd_preprocess.get('mode')}"
+        )
+
+        files = (
+            apd_preprocess
+            .get(
+                "files"
+            )
+        )
+
+        if (
+            apd_preprocess
+            .get(
+                "mode"
+            )
+            == "auto"
+            and isinstance(
+                files,
+                dict,
+            )
+        ):
+            print(
+                "[APDrawingGAN 预处理] "
+                f"aligned="
+                f"{files.get('aligned_image')}"
+            )
+            print(
+                "[APDrawingGAN 预处理] "
+                f"mask="
+                f"{files.get('mask')}"
+            )
 
     print(
         "[耗时/ms] "
