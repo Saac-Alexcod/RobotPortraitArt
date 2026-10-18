@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+import json
+from pathlib import Path
 from typing import Any
 
 from fastapi import (
@@ -12,10 +14,12 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .jobs import (
     InvalidImageError,
+    JobNotFoundError,
     JobStore,
 )
 from .runtime import (
@@ -60,6 +64,53 @@ class JobCreatedResponse(BaseModel):
     method: str
     vector_mode: str
     size: int
+
+
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    method: str
+    vector_mode: str
+    size: int
+    original_filename: str | None
+    input_file: str
+    created_at: str
+    updated_at: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    error: dict[str, str] | None = None
+    result_files: dict[str, str] = Field(
+        default_factory=dict
+    )
+
+
+def _job_not_found(
+    job_id: str,
+) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={
+            "code": "job_not_found",
+            "message": f"找不到 job：{job_id}",
+        },
+    )
+
+
+def _media_type_for(
+    path: Path,
+) -> str:
+    suffix = path.suffix.lower()
+
+    return {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".svg": "image/svg+xml",
+        ".json": "application/json",
+    }.get(
+        suffix,
+        "application/octet-stream",
+    )
 
 
 def create_app(
@@ -170,6 +221,141 @@ def create_app(
                     statuses.items()
                 )
             ]
+        )
+
+    @api.get(
+        "/api/jobs/{job_id}",
+        response_model=JobStatusResponse,
+        tags=["generation"],
+        summary="Get generation job status",
+    )
+    def get_job(
+        job_id: str,
+    ) -> JobStatusResponse:
+        try:
+            record = jobs.get(
+                job_id
+            )
+        except JobNotFoundError as exc:
+            raise _job_not_found(
+                job_id
+            ) from exc
+
+        return JobStatusResponse(
+            **record.to_metadata()
+        )
+
+    @api.get(
+        "/api/jobs/{job_id}/manifest",
+        tags=["generation"],
+        summary="Get completed job manifest",
+    )
+    def get_job_manifest(
+        job_id: str,
+    ) -> dict[str, Any]:
+        try:
+            record = jobs.get(
+                job_id
+            )
+        except JobNotFoundError as exc:
+            raise _job_not_found(
+                job_id
+            ) from exc
+
+        if record.status != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "manifest_unavailable",
+                    "message": (
+                        "job 尚未完成，manifest 当前不可用"
+                    ),
+                    "status": record.status,
+                },
+            )
+
+        try:
+            path = jobs.manifest_path(
+                job_id
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "manifest_not_found",
+                    "message": str(exc),
+                },
+            ) from exc
+
+        try:
+            payload = json.loads(
+                path.read_text(
+                    encoding="utf-8"
+                )
+            )
+        except (
+            OSError,
+            json.JSONDecodeError,
+        ) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "code": "manifest_invalid",
+                    "message": (
+                        "manifest 无法读取或不是合法 JSON"
+                    ),
+                },
+            ) from exc
+
+        if not isinstance(
+            payload,
+            dict,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "code": "manifest_invalid",
+                    "message": (
+                        "manifest 根节点必须是 JSON object"
+                    ),
+                },
+            )
+
+        return payload
+
+    @api.get(
+        "/api/jobs/{job_id}/files/{filename}",
+        response_class=FileResponse,
+        tags=["generation"],
+        summary="Get a public job file",
+    )
+    def get_job_file(
+        job_id: str,
+        filename: str,
+    ) -> FileResponse:
+        try:
+            path = jobs.public_file_path(
+                job_id,
+                filename,
+            )
+        except JobNotFoundError as exc:
+            raise _job_not_found(
+                job_id
+            ) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "file_not_available",
+                    "message": str(exc),
+                },
+            ) from exc
+
+        return FileResponse(
+            path=path,
+            media_type=_media_type_for(
+                path
+            ),
         )
 
     @api.post(

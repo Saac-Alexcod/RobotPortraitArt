@@ -312,3 +312,75 @@ class JobStore:
                 result_files={},
             )
         )
+
+    def manifest_path(
+        self,
+        job_id: str,
+    ) -> Path:
+        record = self.get(
+            job_id
+        )
+
+        filename = (
+            record.result_files
+            .get(
+                "manifest"
+            )
+        )
+
+        if not filename:
+            raise FileNotFoundError(
+                f"job {job_id} 尚无 manifest"
+            )
+
+        path = (
+            self.job_dir(job_id)
+            / filename
+        )
+
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"找不到 job manifest：{path}"
+            )
+
+        return path
+
+    def public_file_path(
+        self,
+        job_id: str,
+        filename: str,
+    ) -> Path:
+        record = self.get(
+            job_id
+        )
+
+        if (
+            not filename
+            or Path(filename).name
+            != filename
+        ):
+            raise FileNotFoundError(
+                f"非法结果文件名：{filename}"
+            )
+
+        allowed = {
+            record.input_file,
+            *record.result_files.values(),
+        }
+
+        if filename not in allowed:
+            raise FileNotFoundError(
+                f"文件不属于 job 的公开结果：{filename}"
+            )
+
+        path = (
+            self.job_dir(job_id)
+            / filename
+        )
+
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"找不到 job 结果文件：{path}"
+            )
+
+        return path

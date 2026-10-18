@@ -1,6 +1,7 @@
 import json
 import sys
 from pathlib import Path
+import time
 
 import cv2
 from fastapi.testclient import TestClient
@@ -400,6 +401,333 @@ def test_create_job_supports_unicode_storage_path(tmp_path):
     assert image.shape[:2] == (32, 32)
 
 
+
+def test_get_job_returns_persisted_status(tmp_path):
+    app, _ = _test_app(
+        tmp_path
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/jobs",
+            files={
+                "image": (
+                    "face.png",
+                    _png_bytes(),
+                    "image/png",
+                )
+            },
+            data={
+                "method": "baseline",
+                "vector_mode": "centerline",
+                "size": "512",
+            },
+        ).json()
+
+        response = client.get(
+            f"/api/jobs/{created['job_id']}"
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["job_id"] == created["job_id"]
+    assert payload["status"] == "queued"
+    assert payload["method"] == "baseline"
+    assert payload["vector_mode"] == "centerline"
+    assert payload["error"] is None
+    assert payload["result_files"] == {}
+
+
+def test_get_job_returns_404_for_unknown_id(tmp_path):
+    app, _ = _test_app(
+        tmp_path
+    )
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/jobs/"
+            "00000000000000000000000000000000"
+        )
+
+    assert response.status_code == 404
+    assert (
+        response.json()["detail"]["code"]
+        == "job_not_found"
+    )
+
+
+def test_manifest_returns_conflict_until_job_completed(tmp_path):
+    app, _ = _test_app(
+        tmp_path
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/jobs",
+            files={
+                "image": (
+                    "face.png",
+                    _png_bytes(),
+                    "image/png",
+                )
+            },
+        ).json()
+
+        response = client.get(
+            f"/api/jobs/{created['job_id']}/manifest"
+        )
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["code"] == "manifest_unavailable"
+    assert detail["status"] == "queued"
+
+
+def test_manifest_returns_completed_pipeline_json(tmp_path):
+    store = JobStore(
+        tmp_path / "jobs"
+    )
+    worker = _NoopWorker()
+    app = create_app(
+        supported_methods_provider=lambda: (
+            "baseline",
+        ),
+        job_store=store,
+        job_worker=worker,
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/jobs",
+            files={
+                "image": (
+                    "face.png",
+                    _png_bytes(),
+                    "image/png",
+                )
+            },
+        ).json()
+
+        job_dir = store.job_dir(
+            created["job_id"]
+        )
+        manifest = {
+            "schema_version": 1,
+            "status": "completed",
+            "method": "baseline",
+            "config": {
+                "vector": {
+                    "mode": "centerline",
+                }
+            },
+        }
+        (
+            job_dir
+            / "manifest.json"
+        ).write_text(
+            json.dumps(
+                manifest,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        store.mark_completed(
+            created["job_id"],
+            result_files={
+                "manifest": "manifest.json",
+            },
+        )
+
+        response = client.get(
+            f"/api/jobs/{created['job_id']}/manifest"
+        )
+
+    assert response.status_code == 200
+    assert response.json() == manifest
+
+
+def test_file_endpoint_serves_only_public_job_files(tmp_path):
+    store = JobStore(
+        tmp_path / "jobs"
+    )
+    worker = _NoopWorker()
+    app = create_app(
+        supported_methods_provider=lambda: (
+            "baseline",
+        ),
+        job_store=store,
+        job_worker=worker,
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/jobs",
+            files={
+                "image": (
+                    "face.png",
+                    _png_bytes(),
+                    "image/png",
+                )
+            },
+        ).json()
+
+        job_dir = store.job_dir(
+            created["job_id"]
+        )
+        svg = (
+            job_dir
+            / "baseline.svg"
+        )
+        svg.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+            encoding="utf-8",
+        )
+        store.mark_completed(
+            created["job_id"],
+            result_files={
+                "vector_svg": "baseline.svg",
+            },
+        )
+
+        result = client.get(
+            f"/api/jobs/{created['job_id']}"
+            "/files/baseline.svg"
+        )
+        hidden = client.get(
+            f"/api/jobs/{created['job_id']}"
+            "/files/job.json"
+        )
+
+    assert result.status_code == 200
+    assert (
+        result.headers["content-type"]
+        .startswith(
+            "image/svg+xml"
+        )
+    )
+    assert b"<svg" in result.content
+
+    assert hidden.status_code == 404
+    assert (
+        hidden.json()["detail"]["code"]
+        == "file_not_available"
+    )
+
+
+def test_file_endpoint_serves_original_input_preview(tmp_path):
+    app, _ = _test_app(
+        tmp_path
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/jobs",
+            files={
+                "image": (
+                    "face.png",
+                    _png_bytes(),
+                    "image/png",
+                )
+            },
+        ).json()
+
+        response = client.get(
+            f"/api/jobs/{created['job_id']}"
+            "/files/input.png"
+        )
+
+    assert response.status_code == 200
+    assert (
+        response.headers["content-type"]
+        .startswith(
+            "image/png"
+        )
+    )
+    assert response.content
+
+
+def test_real_worker_results_are_queryable_over_http(tmp_path):
+    store = JobStore(
+        tmp_path
+        / "智能机器人"
+        / "jobs"
+    )
+    app = create_app(
+        supported_methods_provider=lambda: (
+            "baseline",
+        ),
+        job_store=store,
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/jobs",
+            files={
+                "image": (
+                    "face.png",
+                    _png_bytes(),
+                    "image/png",
+                )
+            },
+            data={
+                "method": "baseline",
+                "vector_mode": "centerline",
+                "size": "64",
+            },
+        ).json()
+
+        deadline = (
+            time.monotonic()
+            + 20
+        )
+        status_payload = None
+
+        while time.monotonic() < deadline:
+            response = client.get(
+                f"/api/jobs/{created['job_id']}"
+            )
+            assert response.status_code == 200
+            status_payload = response.json()
+
+            if status_payload["status"] in {
+                "completed",
+                "failed",
+            }:
+                break
+
+            time.sleep(
+                0.02
+            )
+
+        assert status_payload is not None
+        assert status_payload["status"] == "completed", (
+            status_payload["error"]
+        )
+
+        manifest_response = client.get(
+            f"/api/jobs/{created['job_id']}/manifest"
+        )
+        svg_response = client.get(
+            f"/api/jobs/{created['job_id']}"
+            "/files/baseline.svg"
+        )
+
+    assert manifest_response.status_code == 200
+    manifest = manifest_response.json()
+    assert manifest["method"] == "baseline"
+    assert (
+        manifest["config"]["vector"]["mode"]
+        == "centerline"
+    )
+
+    assert svg_response.status_code == 200
+    assert (
+        svg_response.headers["content-type"]
+        .startswith(
+            "image/svg+xml"
+        )
+    )
+
 def test_openapi_exposes_web_endpoints():
     worker = _NoopWorker()
     with TestClient(
@@ -415,6 +743,12 @@ def test_openapi_exposes_web_endpoints():
     assert "/api/methods" in schema["paths"]
     assert "/api/jobs" in schema["paths"]
     assert "post" in schema["paths"]["/api/jobs"]
+    assert "/api/jobs/{job_id}" in schema["paths"]
+    assert "/api/jobs/{job_id}/manifest" in schema["paths"]
+    assert (
+        "/api/jobs/{job_id}/files/{filename}"
+        in schema["paths"]
+    )
 
 
 def test_default_pipeline_registers_web_generators_without_running_preflight():
