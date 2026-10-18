@@ -1307,3 +1307,541 @@ def align_apdrawinggan_face(
         transform=transform,
         output_size=output_size,
     )
+
+PPHUMANSEG_INPUT_SIZE = (192, 192)
+
+_HUMANSEG_LFS_POINTER_PREFIX = (
+    b"version https://git-lfs.github.com/spec/v1"
+)
+
+
+class HumanSegModelError(RuntimeError):
+    """Raised when the PPHumanSeg ONNX model cannot be loaded."""
+
+
+@dataclass(frozen=True, slots=True)
+class HumanSegConfig:
+    """Configuration for OpenCV Zoo PPHumanSeg inference."""
+
+    model_path: Path
+    backend_id: int = cv2.dnn.DNN_BACKEND_OPENCV
+    target_id: int = cv2.dnn.DNN_TARGET_CPU
+    foreground_class: int = 1
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "model_path",
+            Path(self.model_path),
+        )
+
+        if int(self.foreground_class) < 0:
+            raise ValueError(
+                "foreground_class 必须是非负整数"
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class HumanMaskResult:
+    """Binary person foreground mask compatible with APDrawingGAN."""
+
+    mask: np.ndarray
+    foreground_ratio: float
+    model: str = "opencv-zoo-pphumanseg-2023mar"
+
+    def __post_init__(self) -> None:
+        mask = np.asarray(
+            self.mask
+        )
+
+        if (
+            mask.ndim != 2
+            or mask.dtype != np.uint8
+            or mask.size == 0
+        ):
+            raise ValueError(
+                "mask 必须是非空 uint8 单通道图像"
+            )
+
+        values = set(
+            np.unique(mask).tolist()
+        )
+
+        if not values.issubset(
+            {0, 255}
+        ):
+            raise ValueError(
+                "mask 必须是 0/255 二值图"
+            )
+
+        ratio = float(
+            self.foreground_ratio
+        )
+
+        if (
+            not np.isfinite(ratio)
+            or ratio < 0.0
+            or ratio > 1.0
+        ):
+            raise ValueError(
+                "foreground_ratio 必须位于 [0, 1]"
+            )
+
+    def to_metadata(
+        self,
+    ) -> dict[str, object]:
+        height, width = (
+            self.mask.shape
+        )
+
+        return {
+            "model": self.model,
+            "width": int(width),
+            "height": int(height),
+            "foreground_ratio": float(
+                self.foreground_ratio
+            ),
+            "foreground_value": 255,
+            "background_value": 0,
+        }
+
+
+HumanSegNetFactory = Callable[
+    [np.ndarray, HumanSegConfig],
+    Any,
+]
+
+
+def _load_humanseg_model_buffer(
+    model_path: Path,
+) -> np.ndarray:
+    if not model_path.is_file():
+        raise FileNotFoundError(
+            "找不到 PPHumanSeg ONNX 模型："
+            f"{model_path}"
+        )
+
+    try:
+        data = model_path.read_bytes()
+    except OSError as exc:
+        raise HumanSegModelError(
+            "无法读取 PPHumanSeg ONNX 模型："
+            f"{model_path}"
+        ) from exc
+
+    if not data:
+        raise HumanSegModelError(
+            "PPHumanSeg ONNX 模型为空："
+            f"{model_path}"
+        )
+
+    if data.startswith(
+        _HUMANSEG_LFS_POINTER_PREFIX
+    ):
+        raise HumanSegModelError(
+            "PPHumanSeg 模型当前只是 Git LFS pointer，"
+            "请先拉取真实 ONNX 文件。"
+        )
+
+    return np.frombuffer(
+        data,
+        dtype=np.uint8,
+    )
+
+
+def _default_humanseg_net_factory(
+    model_buffer: np.ndarray,
+    config: HumanSegConfig,
+) -> Any:
+    try:
+        # In-memory loading avoids Windows Unicode-path problems.
+        net = cv2.dnn.readNetFromONNX(
+            model_buffer
+        )
+
+        net.setPreferableBackend(
+            int(
+                config.backend_id
+            )
+        )
+
+        net.setPreferableTarget(
+            int(
+                config.target_id
+            )
+        )
+
+        return net
+    except cv2.error as exc:
+        raise HumanSegModelError(
+            "OpenCV 无法解析 PPHumanSeg ONNX 模型："
+            f"{config.model_path}"
+        ) from exc
+
+
+def _humanseg_blob(
+    image: np.ndarray,
+) -> np.ndarray:
+    """Reproduce OpenCV Zoo PPHumanSeg preprocessing."""
+
+    rgb = cv2.cvtColor(
+        image,
+        cv2.COLOR_BGR2RGB,
+    )
+
+    resized = cv2.resize(
+        rgb,
+        PPHUMANSEG_INPUT_SIZE,
+        interpolation=cv2.INTER_LINEAR,
+    )
+
+    normalized = (
+        resized.astype(
+            np.float32,
+            copy=False,
+        )
+        / 255.0
+    )
+
+    normalized -= 0.5
+    normalized /= 0.5
+
+    return cv2.dnn.blobFromImage(
+        normalized
+    )
+
+
+def _decode_humanseg_output(
+    output: np.ndarray,
+    *,
+    output_size: tuple[int, int],
+    foreground_class: int,
+) -> np.ndarray:
+    """Reproduce OpenCV Zoo PPHumanSeg postprocessing exactly.
+
+    The reference implementation first resizes the per-class logits with
+    bilinear interpolation and only then applies argmax.  Resizing an already
+    discretized class map would move boundaries differently.
+    """
+
+    logits = np.asarray(
+        output
+    )
+
+    if (
+        logits.ndim != 4
+        or logits.shape[0] != 1
+        or logits.shape[1] < 2
+        or logits.shape[2] <= 0
+        or logits.shape[3] <= 0
+        or not np.isfinite(
+            logits
+        ).all()
+    ):
+        raise RuntimeError(
+            "PPHumanSeg 返回了无法识别的输出形状："
+            f"{logits.shape}"
+        )
+
+    if (
+        foreground_class
+        >= logits.shape[1]
+    ):
+        raise RuntimeError(
+            "foreground_class 超出模型输出类别数："
+            f"{foreground_class} >= {logits.shape[1]}"
+        )
+
+    width, height = (
+        output_size
+    )
+
+    logits_hwc = (
+        logits[0]
+        .transpose(
+            1,
+            2,
+            0,
+        )
+    )
+
+    if (
+        logits_hwc.shape[1] != width
+        or logits_hwc.shape[0] != height
+    ):
+        logits_hwc = cv2.resize(
+            logits_hwc,
+            (
+                width,
+                height,
+            ),
+            interpolation=cv2.INTER_LINEAR,
+        )
+
+    if logits_hwc.ndim != 3:
+        raise RuntimeError(
+            "PPHumanSeg resize 后的 logits 形状无效："
+            f"{logits_hwc.shape}"
+        )
+
+    classes = np.argmax(
+        logits_hwc,
+        axis=2,
+    ).astype(
+        np.uint8
+    )
+
+    foreground = (
+        classes
+        == int(
+            foreground_class
+        )
+    ).astype(
+        np.uint8
+    )
+
+    return (
+        foreground
+        * 255
+    ).astype(
+        np.uint8,
+        copy=False,
+    )
+
+
+def generate_pphumanseg_mask(
+    image: np.ndarray,
+    config: HumanSegConfig,
+    *,
+    net_factory: HumanSegNetFactory | None = None,
+) -> HumanMaskResult:
+    """Generate APDrawingGAN's non-background mask with PPHumanSeg.
+
+    APDrawingGAN calls this a "background mask", but its dataset code treats
+    pixels >= 0.5 as ``mask2`` (non-background/portrait).  Therefore this
+    function intentionally writes 255 for person/foreground and 0 for
+    background.
+    """
+
+    _validate_image(
+        image
+    )
+
+    model_buffer = (
+        _load_humanseg_model_buffer(
+            config.model_path
+        )
+    )
+
+    factory = (
+        net_factory
+        or _default_humanseg_net_factory
+    )
+
+    net = factory(
+        model_buffer,
+        config,
+    )
+
+    blob = _humanseg_blob(
+        image
+    )
+
+    try:
+        net.setInput(
+            blob
+        )
+        output = net.forward()
+    except cv2.error as exc:
+        raise RuntimeError(
+            "PPHumanSeg 推理执行失败"
+        ) from exc
+
+    height, width = (
+        image.shape[:2]
+    )
+
+    mask = (
+        _decode_humanseg_output(
+            output,
+            output_size=(
+                width,
+                height,
+            ),
+            foreground_class=(
+                int(
+                    config.foreground_class
+                )
+            ),
+        )
+    )
+
+    foreground_ratio = float(
+        np.count_nonzero(
+            mask
+        )
+        / mask.size
+    )
+
+    return HumanMaskResult(
+        mask=mask,
+        foreground_ratio=(
+            foreground_ratio
+        ),
+    )
+
+
+def draw_human_mask_preview(
+    image: np.ndarray,
+    result: HumanMaskResult,
+) -> np.ndarray:
+    """Visualize foreground while dimming background."""
+
+    _validate_image(
+        image
+    )
+
+    if (
+        result.mask.shape
+        != image.shape[:2]
+    ):
+        raise ValueError(
+            "mask 尺寸必须与 image 一致"
+        )
+
+    preview = image.copy()
+    foreground = (
+        result.mask
+        >= 128
+    )
+
+    dimmed = (
+        preview.astype(
+            np.float32
+        )
+        * 0.30
+        + 255.0
+        * 0.70
+    )
+
+    preview[
+        ~foreground
+    ] = np.clip(
+        dimmed[
+            ~foreground
+        ],
+        0,
+        255,
+    ).astype(
+        np.uint8
+    )
+
+    return preview
+
+
+def compare_binary_masks(
+    predicted: np.ndarray,
+    reference: np.ndarray,
+) -> dict[str, float]:
+    """Compare two 0/255-style foreground masks."""
+
+    predicted_array = np.asarray(
+        predicted
+    )
+    reference_array = np.asarray(
+        reference
+    )
+
+    if (
+        predicted_array.ndim != 2
+        or reference_array.ndim != 2
+        or predicted_array.shape
+        != reference_array.shape
+        or predicted_array.size == 0
+    ):
+        raise ValueError(
+            "两个 mask 必须是同尺寸的非空二维数组"
+        )
+
+    pred = (
+        predicted_array
+        >= 128
+    )
+
+    ref = (
+        reference_array
+        >= 128
+    )
+
+    intersection = int(
+        np.count_nonzero(
+            pred & ref
+        )
+    )
+
+    union = int(
+        np.count_nonzero(
+            pred | ref
+        )
+    )
+
+    pred_count = int(
+        np.count_nonzero(
+            pred
+        )
+    )
+
+    ref_count = int(
+        np.count_nonzero(
+            ref
+        )
+    )
+
+    total = int(
+        pred.size
+    )
+
+    matches = int(
+        np.count_nonzero(
+            pred == ref
+        )
+    )
+
+    iou = (
+        1.0
+        if union == 0
+        else intersection
+        / union
+    )
+
+    denominator = (
+        pred_count
+        + ref_count
+    )
+
+    dice = (
+        1.0
+        if denominator == 0
+        else (
+            2.0
+            * intersection
+            / denominator
+        )
+    )
+
+    return {
+        "iou": float(iou),
+        "dice": float(dice),
+        "pixel_accuracy": float(
+            matches
+            / total
+        ),
+        "predicted_foreground_ratio": float(
+            pred_count
+            / total
+        ),
+        "reference_foreground_ratio": float(
+            ref_count
+            / total
+        ),
+    }
