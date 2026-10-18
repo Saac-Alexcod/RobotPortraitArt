@@ -86,9 +86,19 @@ class APDrawingGANPreflightConfig:
             / self.experiment
         )
 
-    def expected_checkpoint_files(
+    def combined_checkpoint_file(self) -> Path:
+        """Official combined generator checkpoint."""
+
+        return (
+            self.checkpoint_dir()
+            / f"{self.epoch}_net_gen.pt"
+        )
+
+    def expected_split_checkpoint_files(
         self,
     ) -> tuple[Path, ...]:
+        """Legacy/split generator checkpoint layout."""
+
         network_names = (
             "G",
             "GLEyel",
@@ -105,6 +115,15 @@ class APDrawingGANPreflightConfig:
             / f"{self.epoch}_net_{name}.pth"
 
             for name in network_names
+        )
+
+    def expected_checkpoint_files(
+        self,
+    ) -> tuple[Path, ...]:
+        """Backward-compatible alias for the original API."""
+
+        return (
+            self.expected_split_checkpoint_files()
         )
 
 
@@ -193,8 +212,7 @@ class APDrawingGANPreflight:
 
         missing = [
             relative
-            for relative
-            in self._REQUIRED_REPO_FILES
+            for relative in self._REQUIRED_REPO_FILES
             if not (
                 repo / relative
             ).is_file()
@@ -229,52 +247,114 @@ class APDrawingGANPreflight:
     def _check_checkpoints(
         self,
     ) -> PreflightCheck:
-        expected = (
+        combined = (
             self.config
-            .expected_checkpoint_files()
+            .combined_checkpoint_file()
         )
 
-        missing = [
+        split = (
+            self.config
+            .expected_split_checkpoint_files()
+        )
+
+        split_missing = [
             path.name
-            for path in expected
+            for path in split
             if not path.is_file()
         ]
 
-        if missing:
+        split_present = [
+            path.name
+            for path in split
+            if path.is_file()
+        ]
+
+        # Official Model1 uses a combined generator checkpoint.
+        # APDrawingGAN itself checks this file first.
+        if combined.is_file():
             return PreflightCheck(
                 name="checkpoints",
-                ok=False,
+                ok=True,
                 required=True,
                 message=(
-                    "APDrawingGAN 预训练权重不完整，"
-                    f"缺少 {len(missing)} 个文件。"
+                    "APDrawingGAN 官方合并 "
+                    "checkpoint 已就绪。"
                 ),
                 details={
                     "directory": str(
                         self.config
                         .checkpoint_dir()
                     ),
+                    "layout":
+                        "combined",
+                    "combined":
+                        combined.name,
+                    "combined_bytes":
+                        combined.stat().st_size,
+                    "split_expected_count":
+                        len(split),
+                    "split_present_count":
+                        len(split_present),
+                },
+            )
+
+        # Older/split layout remains supported.
+        if not split_missing:
+            return PreflightCheck(
+                name="checkpoints",
+                ok=True,
+                required=True,
+                message=(
+                    "APDrawingGAN 拆分 "
+                    "checkpoint 文件齐全。"
+                ),
+                details={
+                    "directory": str(
+                        self.config
+                        .checkpoint_dir()
+                    ),
+                    "layout":
+                        "split",
                     "expected_count":
-                        len(expected),
-                    "missing":
-                        missing,
+                        len(split),
+                    "files": [
+                        path.name
+                        for path in split
+                    ],
                 },
             )
 
         return PreflightCheck(
             name="checkpoints",
-            ok=True,
+            ok=False,
             required=True,
             message=(
-                "APDrawingGAN 预训练权重文件齐全。"
+                "APDrawingGAN checkpoint 不完整："
+                "需要官方合并 .pt，"
+                "或完整的 8 个拆分 .pth。"
             ),
             details={
                 "directory": str(
                     self.config
                     .checkpoint_dir()
                 ),
+                "combined_expected":
+                    combined.name,
+                "combined_present":
+                    False,
+                "split_expected_count":
+                    len(split),
+                "split_present_count":
+                    len(split_present),
+                "split_missing":
+                    split_missing,
+
+                # 保留最初 preflight 的字段，
+                # 避免旧调用方或已有测试失效。
                 "expected_count":
-                    len(expected),
+                    len(split),
+                "missing":
+                    split_missing,
             },
         )
 
@@ -319,9 +399,8 @@ class APDrawingGANPreflight:
 
         ok = (
             completed.returncode == 0
-            and self._output(
-                completed
-            ) == "ready"
+            and self._output(completed)
+            == "ready"
         )
 
         return PreflightCheck(
@@ -342,7 +421,9 @@ class APDrawingGANPreflight:
                 "returncode":
                     completed.returncode,
                 "output":
-                    self._output(completed),
+                    self._output(
+                        completed
+                    ),
             },
         )
 
@@ -369,7 +450,6 @@ class APDrawingGANPreflight:
         ] = {
             "command":
                 self.config.python_command,
-
             "returncode":
                 completed.returncode,
         }

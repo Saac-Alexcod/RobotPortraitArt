@@ -13,7 +13,10 @@ ROOT = Path(
 
 sys.path.insert(
     0,
-    str(ROOT / "src"),
+    str(
+        ROOT
+        / "src"
+    ),
 )
 
 
@@ -63,7 +66,7 @@ def _repo(
 
         for path in (
             config
-            .expected_checkpoint_files()
+            .expected_split_checkpoint_files()
         ):
             path.parent.mkdir(
                 parents=True,
@@ -225,13 +228,13 @@ class FakeRunner:
                     json.dumps(
                         {
                             "torch":
-                                "2.9.0",
+                                "2.5.1",
 
                             "cuda_available":
                                 self.cuda_available,
 
                             "torch_cuda":
-                                "13.0",
+                                "12.1",
 
                             "device_count":
                                 (
@@ -311,7 +314,7 @@ def test_expected_checkpoint_set_contains_all_local_generators(
         path.name
         for path
         in config
-        .expected_checkpoint_files()
+        .expected_split_checkpoint_files()
     ] == [
         "300_net_G.pth",
         "300_net_GLEyel.pth",
@@ -322,6 +325,140 @@ def test_expected_checkpoint_set_contains_all_local_generators(
         "300_net_GLBG.pth",
         "300_net_GCombine.pth",
     ]
+
+    assert (
+        config
+        .combined_checkpoint_file()
+        .name
+        == "300_net_gen.pt"
+    )
+
+
+def test_combined_checkpoint_is_accepted(
+    tmp_path,
+):
+    repo = _repo(
+        tmp_path,
+        with_checkpoints=False,
+    )
+
+    config = (
+        APDrawingGANPreflightConfig(
+            repo=repo
+        )
+    )
+
+    checkpoint = (
+        config
+        .combined_checkpoint_file()
+    )
+
+    checkpoint.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    checkpoint.write_bytes(
+        b"combined"
+    )
+
+    report = _preflight(
+        repo,
+        FakeRunner(),
+    ).run()
+
+    check = next(
+        check
+        for check in report.checks
+        if check.name == "checkpoints"
+    )
+
+    assert check.ok is True
+
+    assert (
+        check.details["layout"]
+        == "combined"
+    )
+
+    assert (
+        check.details["combined"]
+        == "300_net_gen.pt"
+    )
+
+    assert (
+        check.details["combined_bytes"]
+        == len(b"combined")
+    )
+
+    assert report.ready is True
+
+
+def test_partial_split_checkpoint_is_rejected(
+    tmp_path,
+):
+    repo = _repo(
+        tmp_path,
+        with_checkpoints=False,
+    )
+
+    config = (
+        APDrawingGANPreflightConfig(
+            repo=repo
+        )
+    )
+
+    first = (
+        config
+        .expected_split_checkpoint_files()
+        [0]
+    )
+
+    first.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    first.write_bytes(
+        b"weights"
+    )
+
+    report = _preflight(
+        repo,
+        FakeRunner(),
+    ).run()
+
+    check = next(
+        check
+        for check in report.checks
+        if check.name == "checkpoints"
+    )
+
+    assert check.ok is False
+
+    assert (
+        check.details[
+            "combined_expected"
+        ]
+        == "300_net_gen.pt"
+    )
+
+    assert (
+        check.details[
+            "split_present_count"
+        ]
+        == 1
+    )
+
+    assert (
+        len(
+            check.details[
+                "split_missing"
+            ]
+        )
+        == 7
+    )
+
+    assert report.ready is False
 
 
 def test_preflight_reports_missing_repo_files(
@@ -385,6 +522,13 @@ def test_preflight_reports_all_missing_checkpoints(
             ]
         )
         == 8
+    )
+
+    assert (
+        check.details[
+            "combined_expected"
+        ]
+        == "300_net_gen.pt"
     )
 
     assert report.ready is False
