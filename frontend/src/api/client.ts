@@ -2,6 +2,8 @@ import type {
   CreateJobRequest,
   HealthResponse,
   JobCreatedResponse,
+  JobStatusResponse,
+  ManifestResponse,
   MethodsResponse,
 } from './types'
 
@@ -103,6 +105,32 @@ export function getHealth(): Promise<HealthResponse> {
 
 export function getMethods(): Promise<MethodsResponse> {
   return getJson<MethodsResponse>('/api/methods')
+}
+
+export function getJob(
+  jobId: string,
+): Promise<JobStatusResponse> {
+  return getJson<JobStatusResponse>(
+    `/api/jobs/${encodeURIComponent(jobId)}`,
+  )
+}
+
+export function getManifest(
+  jobId: string,
+): Promise<ManifestResponse> {
+  return getJson<ManifestResponse>(
+    `/api/jobs/${encodeURIComponent(jobId)}/manifest`,
+  )
+}
+
+export function getJobFileUrl(
+  jobId: string,
+  filename: string,
+): string {
+  return (
+    `/api/jobs/${encodeURIComponent(jobId)}`
+    + `/files/${encodeURIComponent(filename)}`
+  )
 }
 
 export async function createJob(

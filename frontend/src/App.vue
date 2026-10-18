@@ -11,14 +11,19 @@ import {
   ApiError,
   createJob,
   getHealth,
+  getJob,
+  getManifest,
   getMethods,
 } from './api/client'
 import type {
   HealthResponse,
   JobCreatedResponse,
+  JobStatusResponse,
+  ManifestResponse,
   MethodStatus,
   VectorMode,
 } from './api/types'
+import JobResults from './components/JobResults.vue'
 import StageCard from './components/StageCard.vue'
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -64,7 +69,12 @@ const fileError = ref<string | null>(null)
 const submitError = ref<string | null>(null)
 const isSubmitting = ref(false)
 const createdJob = ref<JobCreatedResponse | null>(null)
+const jobStatus = ref<JobStatusResponse | null>(null)
+const manifest = ref<ManifestResponse | null>(null)
+const pollError = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
+
+let pollTimer: number | null = null
 
 const backendOnline = computed(
   () => (
@@ -170,6 +180,68 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`
 }
 
+function stopPolling(): void {
+  if (pollTimer !== null) {
+    window.clearTimeout(pollTimer)
+    pollTimer = null
+  }
+}
+
+function resetJobTracking(): void {
+  stopPolling()
+  createdJob.value = null
+  jobStatus.value = null
+  manifest.value = null
+  pollError.value = null
+}
+
+async function pollJob(jobId: string): Promise<void> {
+  if (createdJob.value?.job_id !== jobId) {
+    return
+  }
+
+  try {
+    const current = await getJob(jobId)
+
+    if (createdJob.value?.job_id !== jobId) {
+      return
+    }
+
+    jobStatus.value = current
+    pollError.value = null
+
+    if (current.status === 'completed') {
+      manifest.value = await getManifest(jobId)
+      return
+    }
+
+    if (current.status === 'failed') {
+      return
+    }
+
+    pollTimer = window.setTimeout(
+      () => {
+        void pollJob(jobId)
+      },
+      900,
+    )
+  } catch (error: unknown) {
+    pollError.value = (
+      error instanceof Error
+        ? error.message
+        : '任务状态读取失败。'
+    )
+  }
+}
+
+function startPolling(jobId: string): void {
+  stopPolling()
+  jobStatus.value = null
+  manifest.value = null
+  pollError.value = null
+  void pollJob(jobId)
+}
+
 function revokePreview(): void {
   if (previewUrl.value) {
     URL.revokeObjectURL(previewUrl.value)
@@ -178,11 +250,11 @@ function revokePreview(): void {
 }
 
 function clearSelection(): void {
+  resetJobTracking()
   revokePreview()
   selectedFile.value = null
   fileError.value = null
   submitError.value = null
-  createdJob.value = null
 
   if (fileInput.value) {
     fileInput.value.value = ''
@@ -190,9 +262,9 @@ function clearSelection(): void {
 }
 
 function useFile(file: File): void {
+  resetJobTracking()
   fileError.value = null
   submitError.value = null
-  createdJob.value = null
 
   if (!file.type.startsWith('image/')) {
     fileError.value = '请选择图片文件。'
@@ -243,17 +315,24 @@ async function submitJob(): Promise<void> {
     return
   }
 
+  stopPolling()
   submitError.value = null
   createdJob.value = null
+  jobStatus.value = null
+  manifest.value = null
+  pollError.value = null
   isSubmitting.value = true
 
   try {
-    createdJob.value = await createJob({
+    const response = await createJob({
       image: selectedFile.value,
       method: selectedMethod.value,
       vectorMode: selectedVectorMode.value,
       size: selectedSize.value,
     })
+
+    createdJob.value = response
+    startPolling(response.job_id)
   } catch (error: unknown) {
     if (error instanceof ApiError) {
       submitError.value = (
@@ -322,7 +401,7 @@ watch(
     }
 
     submitError.value = null
-    createdJob.value = null
+    resetJobTracking()
   },
 )
 
@@ -330,7 +409,15 @@ watch(
   selectedVectorMode,
   () => {
     submitError.value = null
-    createdJob.value = null
+    resetJobTracking()
+  },
+)
+
+watch(
+  selectedSize,
+  () => {
+    submitError.value = null
+    resetJobTracking()
   },
 )
 
@@ -339,6 +426,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  stopPolling()
   revokePreview()
 })
 </script>
@@ -374,7 +462,7 @@ onBeforeUnmount(() => {
 
       <div class="topbar__badge">
         <span class="status-dot"></span>
-        Web Demo V3
+        Web Demo V4
       </div>
     </header>
 
@@ -385,12 +473,12 @@ onBeforeUnmount(() => {
 
           <h1>
             上传肖像，
-            <span>创建真实的机器人绘制任务。</span>
+            <span>从任务提交一直看到最终绘制结果。</span>
           </h1>
 
           <p>
-            V3 将浏览器图片、Generator、Vector Mode 与 FastAPI
-            <code>POST /api/jobs</code> 真正连接起来。
+            V4 在真实任务提交之后自动轮询 Job 状态，
+            并直接加载 PNG、SVG 与 Manifest 指标。
           </p>
 
           <div class="hero__actions">
@@ -400,7 +488,7 @@ onBeforeUnmount(() => {
               @click="chooseFile"
             >
               选择图片
-              <span>V3</span>
+              <span>V4</span>
             </button>
 
             <div
@@ -482,8 +570,8 @@ onBeforeUnmount(() => {
             <h2>创建生成任务</h2>
           </div>
           <p>
-            本阶段只负责创建真实 job 并显示 job_id。
-            任务状态轮询与结果展示将在 V4 完成。
+            创建真实 job 后，页面会自动轮询 queued / running /
+            completed / failed，并在完成后加载结果文件与 Manifest。
           </p>
         </div>
 
@@ -643,13 +731,13 @@ onBeforeUnmount(() => {
               class="job-created"
               aria-live="polite"
             >
-              <span>JOB CREATED</span>
+              <span>LIVE JOB</span>
               <strong>{{ createdJob.job_id }}</strong>
 
               <dl>
                 <div>
                   <dt>Status</dt>
-                  <dd>{{ createdJob.status }}</dd>
+                  <dd>{{ jobStatus?.status ?? createdJob.status }}</dd>
                 </div>
                 <div>
                   <dt>Method</dt>
@@ -665,13 +753,36 @@ onBeforeUnmount(() => {
                 </div>
               </dl>
 
-              <p>
-                任务已经进入后端 worker。
-                V4 将从这个 job_id 开始轮询状态并加载结果文件。
+              <p v-if="jobStatus?.status === 'completed'">
+                Worker 已完成任务，结果与 Manifest 已加载到页面下方。
+              </p>
+              <p v-else-if="jobStatus?.status === 'failed'">
+                Worker 返回失败状态，请查看下方错误信息。
+              </p>
+              <p v-else>
+                前端正在自动轮询后端状态，无需手动打开 Job API。
+              </p>
+
+              <p v-if="pollError" class="job-live-error">
+                {{ pollError }}
+              </p>
+
+              <p
+                v-if="jobStatus?.error"
+                class="job-live-error"
+              >
+                {{ jobStatus.error.type }}:
+                {{ jobStatus.error.message }}
               </p>
             </article>
           </form>
         </div>
+
+        <JobResults
+          v-if="jobStatus?.status === 'completed'"
+          :job="jobStatus"
+          :manifest="manifest"
+        />
       </section>
 
       <section class="workflow-section">
@@ -681,7 +792,7 @@ onBeforeUnmount(() => {
             <h2>Web Demo 开发路径</h2>
           </div>
           <p>
-            V3 已经可以从浏览器创建真实生成任务。
+            V4 已经完成任务提交、自动轮询、结果展示与文件下载。
           </p>
         </div>
 
