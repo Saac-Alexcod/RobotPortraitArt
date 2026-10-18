@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 import { getJobFileUrl } from '../api/client'
 import DrawingSimulation from './DrawingSimulation.vue'
+import ResultComparison from './ResultComparison.vue'
 import type {
   JobStatusResponse,
   ManifestResponse,
@@ -51,6 +52,37 @@ const vectorMetrics = computed(
 const timings = computed(
   () => props.manifest?.timings_ms,
 )
+
+const comparisonOptions = computed(() => {
+  const files = props.job.result_files
+
+  return [
+    {
+      key: 'original',
+      label: 'Original',
+      filename: props.job.input_file,
+      url: fileUrl(props.job.input_file),
+    },
+    {
+      key: 'prepared',
+      label: 'Prepared',
+      filename: files.prepared || '',
+      url: fileUrl(files.prepared),
+    },
+    {
+      key: 'portrait',
+      label: 'Portrait',
+      filename: files.raster_portrait || '',
+      url: fileUrl(files.raster_portrait),
+    },
+    {
+      key: 'vector',
+      label: 'Robot Vector',
+      filename: files.vector_render || files.vector_svg || '',
+      url: fileUrl(files.vector_render || files.vector_svg),
+    },
+  ]
+})
 
 const strokeCount = computed(
   () => (
@@ -177,6 +209,10 @@ function formatMilliseconds(
     <div v-if="!manifest" class="manifest-loading">
       Job 已完成，正在读取 manifest 指标…
     </div>
+
+    <ResultComparison
+      :options="comparisonOptions"
+    />
 
     <DrawingSimulation
       v-if="job.result_files.vector_svg"
