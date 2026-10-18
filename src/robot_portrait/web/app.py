@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import (
@@ -19,8 +20,13 @@ from .jobs import (
 )
 from .runtime import (
     PROJECT_ROOT,
+    build_pipeline,
     default_generator_statuses,
     default_supported_methods,
+)
+from .worker import (
+    JobWorker,
+    JobWorkerLike,
 )
 
 
@@ -61,6 +67,7 @@ def create_app(
     generator_status_provider: GeneratorStatusProvider | None = None,
     supported_methods_provider: SupportedMethodsProvider | None = None,
     job_store: JobStore | None = None,
+    job_worker: JobWorkerLike | None = None,
     max_upload_bytes: int = 10 * 1024 * 1024,
 ) -> FastAPI:
     """Create the RobotPortraitArt HTTP API application."""
@@ -86,14 +93,36 @@ def create_app(
             / "web_jobs"
         )
     )
+    worker = (
+        job_worker
+        or JobWorker(
+            jobs,
+            pipeline_builder=(
+                build_pipeline
+            ),
+        )
+    )
+
+    @asynccontextmanager
+    async def lifespan(
+        _: FastAPI,
+    ):
+        worker.start()
+        try:
+            yield
+        finally:
+            worker.stop(
+                wait=True
+            )
 
     api = FastAPI(
         title="RobotPortraitArt API",
-        version="0.3.0",
+        version="0.4.0",
         description=(
             "HTTP API for portrait generation, vectorization, "
             "and robot drawing path planning."
         ),
+        lifespan=lifespan,
     )
 
     @api.get(
@@ -248,6 +277,23 @@ def create_app(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "code": "invalid_image",
+                    "message": str(exc),
+                },
+            ) from exc
+
+        try:
+            worker.submit(
+                record.job_id
+            )
+        except RuntimeError as exc:
+            jobs.mark_failed(
+                record.job_id,
+                exc,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": "worker_unavailable",
                     "message": str(exc),
                 },
             ) from exc

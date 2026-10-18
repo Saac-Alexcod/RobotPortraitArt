@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
+from threading import RLock
 import uuid
 
 import cv2
@@ -19,6 +21,19 @@ JOB_STATUSES = {
     "failed",
 }
 
+_JOB_ID_PATTERN = re.compile(
+    r"^[0-9a-f]{32}$"
+)
+
+
+def _utc_now() -> str:
+    return (
+        datetime.now(
+            timezone.utc
+        )
+        .isoformat()
+    )
+
 
 @dataclass(frozen=True, slots=True)
 class JobRecord:
@@ -30,8 +45,21 @@ class JobRecord:
     original_filename: str | None
     input_file: str
     created_at: str
+    updated_at: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    error: dict[str, str] | None = None
+    result_files: dict[str, str] = field(
+        default_factory=dict
+    )
 
     def __post_init__(self) -> None:
+        if not _JOB_ID_PATTERN.fullmatch(
+            self.job_id
+        ):
+            raise ValueError(
+                "job_id 必须是 32 位小写十六进制字符串"
+            )
         if self.status not in JOB_STATUSES:
             raise ValueError(
                 f"非法 job status：{self.status}"
@@ -49,11 +77,16 @@ class InvalidImageError(ValueError):
     """Uploaded bytes are not a decodable portrait image."""
 
 
+class JobNotFoundError(FileNotFoundError):
+    """Requested job does not exist."""
+
+
 class JobStore:
     """Filesystem-backed storage for web generation jobs."""
 
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root)
+        self._lock = RLock()
 
     @staticmethod
     def _decode_image(data: bytes) -> np.ndarray:
@@ -83,6 +116,10 @@ class JobStore:
         path: Path,
         payload: dict[str, object],
     ) -> None:
+        path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
         temporary = path.with_name(
             path.name + ".tmp"
         )
@@ -95,6 +132,62 @@ class JobStore:
             encoding="utf-8",
         )
         temporary.replace(path)
+
+    def job_dir(
+        self,
+        job_id: str,
+    ) -> Path:
+        if not _JOB_ID_PATTERN.fullmatch(
+            str(job_id)
+        ):
+            raise JobNotFoundError(
+                f"非法 job_id：{job_id}"
+            )
+        return self.root / str(job_id)
+
+    def get(
+        self,
+        job_id: str,
+    ) -> JobRecord:
+        metadata_path = (
+            self.job_dir(job_id)
+            / "job.json"
+        )
+
+        with self._lock:
+            if not metadata_path.is_file():
+                raise JobNotFoundError(
+                    f"找不到 job：{job_id}"
+                )
+
+            payload = json.loads(
+                metadata_path.read_text(
+                    encoding="utf-8"
+                )
+            )
+
+        return JobRecord(
+            **payload
+        )
+
+    def _replace(
+        self,
+        record: JobRecord,
+    ) -> JobRecord:
+        metadata_path = (
+            self.job_dir(
+                record.job_id
+            )
+            / "job.json"
+        )
+
+        with self._lock:
+            self._write_json_atomic(
+                metadata_path,
+                record.to_metadata(),
+            )
+
+        return record
 
     def create(
         self,
@@ -111,10 +204,12 @@ class JobStore:
 
         job_id = uuid.uuid4().hex
         job_dir = self.root / job_id
-        job_dir.mkdir(
-            parents=True,
-            exist_ok=False,
-        )
+
+        with self._lock:
+            job_dir.mkdir(
+                parents=True,
+                exist_ok=False,
+            )
 
         input_path = job_dir / "input.png"
 
@@ -122,6 +217,8 @@ class JobStore:
             input_path,
             image,
         )
+
+        now = _utc_now()
 
         record = JobRecord(
             job_id=job_id,
@@ -134,17 +231,84 @@ class JobStore:
                 or None
             ),
             input_file=input_path.name,
-            created_at=(
-                datetime.now(
-                    timezone.utc
-                )
-                .isoformat()
-            ),
+            created_at=now,
+            updated_at=now,
         )
 
-        self._write_json_atomic(
-            job_dir / "job.json",
-            record.to_metadata(),
+        return self._replace(
+            record
         )
 
-        return record
+    def mark_running(
+        self,
+        job_id: str,
+    ) -> JobRecord:
+        current = self.get(
+            job_id
+        )
+        now = _utc_now()
+
+        return self._replace(
+            replace(
+                current,
+                status="running",
+                updated_at=now,
+                started_at=(
+                    current.started_at
+                    or now
+                ),
+                completed_at=None,
+                error=None,
+                result_files={},
+            )
+        )
+
+    def mark_completed(
+        self,
+        job_id: str,
+        *,
+        result_files: dict[str, str],
+    ) -> JobRecord:
+        current = self.get(
+            job_id
+        )
+        now = _utc_now()
+
+        return self._replace(
+            replace(
+                current,
+                status="completed",
+                updated_at=now,
+                completed_at=now,
+                error=None,
+                result_files=dict(
+                    result_files
+                ),
+            )
+        )
+
+    def mark_failed(
+        self,
+        job_id: str,
+        error: BaseException,
+    ) -> JobRecord:
+        current = self.get(
+            job_id
+        )
+        now = _utc_now()
+
+        return self._replace(
+            replace(
+                current,
+                status="failed",
+                updated_at=now,
+                completed_at=now,
+                error={
+                    "type":
+                        type(error).__name__,
+                    "message":
+                        str(error),
+                },
+                result_files={},
+            )
+        )
