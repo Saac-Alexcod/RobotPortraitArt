@@ -807,3 +807,407 @@ footer {
     flex-direction: column;
   }
 }
+
+
+/* V3: image upload + real job creation */
+.hero--compact {
+  padding-bottom: 68px;
+}
+
+.job-section {
+  padding: 74px 0 82px;
+  border-top: 1px solid var(--border);
+}
+
+.job-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.upload-panel,
+.job-form {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.drop-zone {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  place-items: center;
+  border: 1px dashed rgba(69, 104, 153, 0.28);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      rgba(70, 105, 150, 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(70, 105, 150, 0.035) 1px,
+      transparent 1px
+    ),
+    #fbfcff;
+  background-size: 28px 28px;
+  cursor: pointer;
+}
+
+.drop-zone:hover {
+  border-color: rgba(47, 103, 244, 0.42);
+}
+
+.drop-zone img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #f7f9fc;
+}
+
+.drop-zone__empty {
+  display: grid;
+  gap: 8px;
+  padding: 24px;
+  color: #6d809c;
+  text-align: center;
+}
+
+.drop-zone__empty strong {
+  color: #365477;
+  font-size: 1rem;
+}
+
+.drop-zone__empty small {
+  font-size: 0.78rem;
+}
+
+.file-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(54, 95, 156, 0.05);
+}
+
+.file-meta div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.file-meta strong {
+  overflow: hidden;
+  color: #345070;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-meta span {
+  color: #8796aa;
+  font-size: 0.68rem;
+}
+
+.text-button {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  color: #5274a7;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.job-form {
+  display: grid;
+  gap: 22px;
+}
+
+.job-form fieldset {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.job-form legend {
+  width: 100%;
+  margin-bottom: 10px;
+  color: #778aa4;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.option-card {
+  display: flex;
+  min-height: 106px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: inherit;
+  background: #fbfcfe;
+  text-align: left;
+  cursor: pointer;
+}
+
+.option-card:hover:not(:disabled) {
+  border-color: rgba(47, 103, 244, 0.27);
+}
+
+.option-card--selected {
+  border-color: rgba(47, 103, 244, 0.42);
+  background: rgba(47, 103, 244, 0.045);
+  box-shadow: inset 0 0 0 1px rgba(47, 103, 244, 0.06);
+}
+
+.option-card--disabled {
+  cursor: not-allowed;
+  opacity: 0.64;
+}
+
+.option-card > span:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.option-card strong {
+  color: #304c72;
+  font-size: 0.84rem;
+}
+
+.option-card small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.segmented-control label {
+  cursor: pointer;
+}
+
+.segmented-control input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented-control span {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #fbfcfe;
+}
+
+.segmented-control input:checked + span {
+  border-color: rgba(47, 103, 244, 0.4);
+  background: rgba(47, 103, 244, 0.05);
+}
+
+.segmented-control strong {
+  color: #304c72;
+  font-size: 0.82rem;
+}
+
+.segmented-control small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.size-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #fbfcfe;
+}
+
+.size-field > span {
+  display: grid;
+  gap: 4px;
+}
+
+.size-field strong {
+  color: #304c72;
+  font-size: 0.82rem;
+}
+
+.size-field small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.size-field input {
+  width: 92px;
+  padding: 9px 10px;
+  border: 1px solid rgba(78, 103, 139, 0.2);
+  border-radius: 8px;
+  outline: none;
+  color: #304c72;
+  background: white;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.size-field input:focus {
+  border-color: rgba(47, 103, 244, 0.45);
+}
+
+.size-field input:disabled {
+  color: #8c9aab;
+  background: #f2f4f7;
+}
+
+.button--generate {
+  width: 100%;
+  justify-content: center;
+  color: white;
+  border: 0;
+  background: #2f67f4;
+  box-shadow: 0 12px 24px rgba(47, 103, 244, 0.16);
+  cursor: pointer;
+}
+
+.button--generate:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.button--generate:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+  box-shadow: none;
+}
+
+.form-error {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 9px;
+  color: #9b4751;
+  background: rgba(185, 74, 88, 0.07);
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
+.job-created {
+  padding: 18px;
+  border: 1px solid rgba(45, 187, 141, 0.2);
+  border-radius: 13px;
+  background: rgba(45, 187, 141, 0.055);
+}
+
+.job-created > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #28816a;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.job-created > strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #2e5870;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.77rem;
+}
+
+.job-created dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.job-created dl div {
+  padding: 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.job-created dt {
+  color: #8a9aab;
+  font-size: 0.58rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.job-created dd {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: #31546a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-created p {
+  margin: 14px 0 0;
+  color: #698393;
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 980px) {
+  .job-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .option-grid,
+  .segmented-control,
+  .job-created dl {
+    grid-template-columns: 1fr;
+  }
+
+  .size-field {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

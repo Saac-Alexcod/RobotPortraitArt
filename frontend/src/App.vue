@@ -1,26 +1,34 @@
 <script setup lang="ts">
 import {
   computed,
+  onBeforeUnmount,
   onMounted,
   ref,
+  watch,
 } from 'vue'
 
 import {
+  ApiError,
+  createJob,
   getHealth,
   getMethods,
 } from './api/client'
 import type {
   HealthResponse,
+  JobCreatedResponse,
   MethodStatus,
+  VectorMode,
 } from './api/types'
 import StageCard from './components/StageCard.vue'
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 const stages = [
   {
     step: '01',
     title: '上传肖像',
     description: '选择人脸照片，作为艺术线稿生成和机器人绘制的输入。',
-    status: 'next' as const,
+    status: 'ready' as const,
   },
   {
     step: '02',
@@ -47,11 +55,34 @@ const methods = ref<MethodStatus[]>([])
 const isCheckingBackend = ref(true)
 const backendError = ref<string | null>(null)
 
+const selectedFile = ref<File | null>(null)
+const previewUrl = ref<string | null>(null)
+const selectedMethod = ref('baseline')
+const selectedVectorMode = ref<VectorMode>('centerline')
+const selectedSize = ref(512)
+const fileError = ref<string | null>(null)
+const submitError = ref<string | null>(null)
+const isSubmitting = ref(false)
+const createdJob = ref<JobCreatedResponse | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+
 const backendOnline = computed(
   () => (
     !backendError.value
     && health.value?.status === 'ok'
   ),
+)
+
+const availableMethods = computed(
+  () => methods.value.filter(
+    (method) => method.available,
+  ),
+)
+
+const selectedMethodStatus = computed(
+  () => methods.value.find(
+    (method) => method.name === selectedMethod.value,
+  ) ?? null,
 )
 
 const backendLabel = computed(() => {
@@ -95,9 +126,25 @@ const backendCapabilities = computed(() => {
   ]
 })
 
+const canSubmit = computed(
+  () => (
+    backendOnline.value
+    && selectedFile.value !== null
+    && selectedMethodStatus.value?.available === true
+    && !fileError.value
+    && !isSubmitting.value
+    && selectedSize.value >= 64
+    && selectedSize.value <= 2048
+    && (
+      selectedMethod.value !== 'apdrawinggan'
+      || selectedSize.value === 512
+    )
+  ),
+)
+
 function methodDisplayName(name: string): string {
   if (name === 'baseline') {
-    return 'Baseline'
+    return 'OpenCV Baseline'
   }
 
   if (name === 'apdrawinggan') {
@@ -115,6 +162,115 @@ function backendDetail(method: MethodStatus): string {
   return method.reason || '当前生成器不可用。'
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KiB`
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`
+}
+
+function revokePreview(): void {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value)
+    previewUrl.value = null
+  }
+}
+
+function clearSelection(): void {
+  revokePreview()
+  selectedFile.value = null
+  fileError.value = null
+  submitError.value = null
+  createdJob.value = null
+
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
+function useFile(file: File): void {
+  fileError.value = null
+  submitError.value = null
+  createdJob.value = null
+
+  if (!file.type.startsWith('image/')) {
+    fileError.value = '请选择图片文件。'
+    return
+  }
+
+  if (file.size > MAX_UPLOAD_BYTES) {
+    fileError.value = '图片超过后端默认的 10 MiB 上传限制。'
+    return
+  }
+
+  revokePreview()
+  selectedFile.value = file
+  previewUrl.value = URL.createObjectURL(file)
+}
+
+function onFileChange(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+
+  if (file) {
+    useFile(file)
+  }
+}
+
+function onDrop(event: DragEvent): void {
+  const file = event.dataTransfer?.files?.[0]
+
+  if (file) {
+    useFile(file)
+  }
+}
+
+function chooseFile(): void {
+  fileInput.value?.click()
+}
+
+function pickMethod(method: MethodStatus): void {
+  if (!method.available) {
+    return
+  }
+
+  selectedMethod.value = method.name
+}
+
+async function submitJob(): Promise<void> {
+  if (!canSubmit.value || !selectedFile.value) {
+    return
+  }
+
+  submitError.value = null
+  createdJob.value = null
+  isSubmitting.value = true
+
+  try {
+    createdJob.value = await createJob({
+      image: selectedFile.value,
+      method: selectedMethod.value,
+      vectorMode: selectedVectorMode.value,
+      size: selectedSize.value,
+    })
+  } catch (error: unknown) {
+    if (error instanceof ApiError) {
+      submitError.value = (
+        error.code
+          ? `${error.code}: ${error.message}`
+          : error.message
+      )
+    } else if (error instanceof Error) {
+      submitError.value = error.message
+    } else {
+      submitError.value = '创建任务失败。'
+    }
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
 async function loadBackendStatus(): Promise<void> {
   isCheckingBackend.value = true
   backendError.value = null
@@ -130,6 +286,20 @@ async function loadBackendStatus(): Promise<void> {
 
     health.value = healthResponse
     methods.value = methodsResponse.methods
+
+    const current = methodsResponse.methods.find(
+      (method) => method.name === selectedMethod.value,
+    )
+
+    if (!current?.available) {
+      const firstAvailable = methodsResponse.methods.find(
+        (method) => method.available,
+      )
+
+      if (firstAvailable) {
+        selectedMethod.value = firstAvailable.name
+      }
+    }
   } catch (error: unknown) {
     health.value = null
     methods.value = []
@@ -144,8 +314,32 @@ async function loadBackendStatus(): Promise<void> {
   }
 }
 
+watch(
+  selectedMethod,
+  (method) => {
+    if (method === 'apdrawinggan') {
+      selectedSize.value = 512
+    }
+
+    submitError.value = null
+    createdJob.value = null
+  },
+)
+
+watch(
+  selectedVectorMode,
+  () => {
+    submitError.value = null
+    createdJob.value = null
+  },
+)
+
 onMounted(() => {
   void loadBackendStatus()
+})
+
+onBeforeUnmount(() => {
+  revokePreview()
 })
 </script>
 
@@ -180,29 +374,33 @@ onMounted(() => {
 
       <div class="topbar__badge">
         <span class="status-dot"></span>
-        Web Demo V2
+        Web Demo V3
       </div>
     </header>
 
     <main>
-      <section class="hero">
+      <section class="hero hero--compact">
         <div class="hero__copy">
           <div class="eyebrow">机器人肖像绘制艺术风格学习</div>
 
           <h1>
-            从一张人脸照片，
-            <span>生成机器人可执行的艺术绘制轨迹。</span>
+            上传肖像，
+            <span>创建真实的机器人绘制任务。</span>
           </h1>
 
           <p>
-            RobotPortraitArt 将人脸预处理、GAN 肖像生成、中心线矢量化与轨迹规划
-            连接成一条可交互的 Web Demo Pipeline。
+            V3 将浏览器图片、Generator、Vector Mode 与 FastAPI
+            <code>POST /api/jobs</code> 真正连接起来。
           </p>
 
           <div class="hero__actions">
-            <button class="button button--primary" type="button" disabled>
-              上传图片
-              <span>V3 开放</span>
+            <button
+              class="button button--primary"
+              type="button"
+              @click="chooseFile"
+            >
+              选择图片
+              <span>V3</span>
             </button>
 
             <div
@@ -272,11 +470,207 @@ onMounted(() => {
                 <circle class="robot-joint" cx="152" cy="286" r="8" />
                 <circle class="robot-joint" cx="202" cy="298" r="7" />
               </svg>
-
-              <div class="coordinate coordinate--x">X 312.4</div>
-              <div class="coordinate coordinate--y">Y 188.7</div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section class="job-section">
+        <div class="section-heading">
+          <div>
+            <span>CREATE JOB</span>
+            <h2>创建生成任务</h2>
+          </div>
+          <p>
+            本阶段只负责创建真实 job 并显示 job_id。
+            任务状态轮询与结果展示将在 V4 完成。
+          </p>
+        </div>
+
+        <div class="job-layout">
+          <div class="upload-panel">
+            <input
+              ref="fileInput"
+              class="visually-hidden"
+              type="file"
+              accept="image/*"
+              @change="onFileChange"
+            >
+
+            <button
+              class="drop-zone"
+              type="button"
+              @click="chooseFile"
+              @dragover.prevent
+              @drop.prevent="onDrop"
+            >
+              <img
+                v-if="previewUrl"
+                :src="previewUrl"
+                alt="上传肖像预览"
+              >
+
+              <span v-else class="drop-zone__empty">
+                <strong>拖入肖像图片</strong>
+                <small>或点击选择文件 · 最大 10 MiB</small>
+              </span>
+            </button>
+
+            <div v-if="selectedFile" class="file-meta">
+              <div>
+                <strong>{{ selectedFile.name }}</strong>
+                <span>{{ formatBytes(selectedFile.size) }}</span>
+              </div>
+              <button
+                type="button"
+                class="text-button"
+                @click="clearSelection"
+              >
+                移除
+              </button>
+            </div>
+
+            <p v-if="fileError" class="form-error">
+              {{ fileError }}
+            </p>
+          </div>
+
+          <form class="job-form" @submit.prevent="submitJob">
+            <fieldset>
+              <legend>Generator</legend>
+
+              <div class="option-grid">
+                <button
+                  v-for="method in methods"
+                  :key="method.name"
+                  class="option-card"
+                  :class="{
+                    'option-card--selected': selectedMethod === method.name,
+                    'option-card--disabled': !method.available,
+                  }"
+                  type="button"
+                  :disabled="!method.available"
+                  @click="pickMethod(method)"
+                >
+                  <span>
+                    <strong>{{ methodDisplayName(method.name) }}</strong>
+                    <small>{{ backendDetail(method) }}</small>
+                  </span>
+
+                  <span
+                    class="method-badge"
+                    :class="{
+                      'method-badge--available': method.available,
+                      'method-badge--unavailable': !method.available,
+                    }"
+                  >
+                    {{ method.available ? 'Available' : 'Unavailable' }}
+                  </span>
+                </button>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Vector Mode</legend>
+
+              <div class="segmented-control">
+                <label>
+                  <input
+                    v-model="selectedVectorMode"
+                    type="radio"
+                    value="contour"
+                  >
+                  <span>
+                    <strong>Contour</strong>
+                    <small>边界路径</small>
+                  </span>
+                </label>
+
+                <label>
+                  <input
+                    v-model="selectedVectorMode"
+                    type="radio"
+                    value="centerline"
+                  >
+                  <span>
+                    <strong>Centerline</strong>
+                    <small>机器人中心线轨迹</small>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Output Size</legend>
+
+              <label class="size-field">
+                <span>
+                  <strong>Canvas size</strong>
+                  <small>
+                    64–2048 px；APDrawingGAN 固定为 512 px
+                  </small>
+                </span>
+
+                <input
+                  v-model.number="selectedSize"
+                  type="number"
+                  min="64"
+                  max="2048"
+                  step="1"
+                  :disabled="selectedMethod === 'apdrawinggan'"
+                >
+              </label>
+            </fieldset>
+
+            <button
+              class="button button--generate"
+              type="submit"
+              :disabled="!canSubmit"
+            >
+              {{
+                isSubmitting
+                  ? '正在创建任务…'
+                  : 'Generate Portrait'
+              }}
+            </button>
+
+            <p v-if="submitError" class="form-error">
+              {{ submitError }}
+            </p>
+
+            <article
+              v-if="createdJob"
+              class="job-created"
+              aria-live="polite"
+            >
+              <span>JOB CREATED</span>
+              <strong>{{ createdJob.job_id }}</strong>
+
+              <dl>
+                <div>
+                  <dt>Status</dt>
+                  <dd>{{ createdJob.status }}</dd>
+                </div>
+                <div>
+                  <dt>Method</dt>
+                  <dd>{{ createdJob.method }}</dd>
+                </div>
+                <div>
+                  <dt>Vector</dt>
+                  <dd>{{ createdJob.vector_mode }}</dd>
+                </div>
+                <div>
+                  <dt>Size</dt>
+                  <dd>{{ createdJob.size }} px</dd>
+                </div>
+              </dl>
+
+              <p>
+                任务已经进入后端 worker。
+                V4 将从这个 job_id 开始轮询状态并加载结果文件。
+              </p>
+            </article>
+          </form>
         </div>
       </section>
 
@@ -287,8 +681,7 @@ onMounted(() => {
             <h2>Web Demo 开发路径</h2>
           </div>
           <p>
-            V2 将 Vue 页面连接到真实 FastAPI，
-            读取服务健康状态与 Generator 能力。
+            V3 已经可以从浏览器创建真实生成任务。
           </p>
         </div>
 
@@ -359,7 +752,7 @@ onMounted(() => {
             <div class="api-card__header">
               <code>GET /api/methods</code>
               <span class="api-status">
-                {{ methods.length }} methods
+                {{ availableMethods.length }}/{{ methods.length }} available
               </span>
             </div>
 
@@ -399,47 +792,11 @@ onMounted(() => {
           </article>
         </div>
       </section>
-
-      <section class="architecture-section">
-        <div class="architecture-card">
-          <div class="architecture-card__copy">
-            <span class="architecture-card__eyebrow">V2 SCOPE</span>
-            <h2>前后端已经开始真实联调</h2>
-            <p>
-              Vue 通过 Vite 的 <code>/api</code> proxy 调用 FastAPI。
-              本阶段只读取 <code>/api/health</code> 与
-              <code>/api/methods</code>，不提交生成任务。
-              下一步 V3 再加入图片上传、参数选择与
-              <code>POST /api/jobs</code>。
-            </p>
-          </div>
-
-          <div class="architecture-flow" aria-label="Frontend architecture">
-            <div class="flow-node flow-node--active">
-              <span>Vue3 + TS</span>
-              <strong>Frontend</strong>
-            </div>
-            <div class="flow-arrow">→</div>
-            <div
-              class="flow-node"
-              :class="{ 'flow-node--online': backendOnline }"
-            >
-              <span>/api</span>
-              <strong>FastAPI</strong>
-            </div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-node">
-              <span>Single Worker</span>
-              <strong>Pipeline</strong>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
 
     <footer>
       <span>RobotPortraitArt</span>
-      <span>Vue3 + TypeScript Web Demo · V2</span>
+      <span>Vue3 + TypeScript Web Demo · V3</span>
     </footer>
   </div>
 </template>
