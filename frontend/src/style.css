@@ -1258,6 +1258,10 @@ footer {
   gap: 12px;
 }
 
+.result-grid--expanded {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .result-card {
   overflow: hidden;
   border: 1px solid var(--border);
@@ -1314,6 +1318,26 @@ footer {
   font-size: 0.62rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.aligned-input-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(47, 103, 244, 0.12);
+  border-radius: 9px;
+  color: #6f829a;
+  background: rgba(47, 103, 244, 0.035);
+  font-size: 0.68rem;
+  line-height: 1.55;
+}
+
+.aligned-input-note strong {
+  flex: 0 0 auto;
+  color: #426b9d;
+  font-size: 0.68rem;
 }
 
 .metrics-grid {
