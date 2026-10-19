@@ -639,3 +639,6 @@ REPORT_DATA_TEMPLATE.csv
 ```
 
 个人贡献与后续规划可继续从实验结果中整理，不应填写未经实际运行得到的数据。
+## Documentation / 文档
+
+- [Final Project Report / 最终项目报告](docs/FINAL_REPORT.md)
