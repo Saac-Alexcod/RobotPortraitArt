@@ -63,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--score-threshold",
         type=float,
-        default=0.75,
+        default=0.50,
         help=(
             "YuNet threshold used only for evaluation-region localization. "
             "This does not change the generation benchmark."
@@ -688,7 +688,7 @@ def main() -> int:
             exist_ok=True,
         )
 
-    print("RobotPortraitArt Automatic Structural Fidelity V1")
+    print("RobotPortraitArt Automatic Structural Fidelity V2")
     print(f"Rows:             {len(rows)}")
     print(f"YuNet threshold:  {args.score_threshold}")
     print(f"Edge tolerance:   {args.edge_tolerance}px")
