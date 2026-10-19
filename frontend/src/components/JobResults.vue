@@ -16,8 +16,7 @@ const props = defineProps<{
 
 const resultCards = computed(() => {
   const files = props.job.result_files
-
-  return [
+  const cards = [
     {
       title: 'Original',
       subtitle: props.job.original_filename || props.job.input_file,
@@ -25,11 +24,23 @@ const resultCards = computed(() => {
       previewKind: 'photo',
     },
     {
-      title: 'Prepared',
+      title: files.aligned_input ? 'Pipeline Prepared' : 'Prepared',
       subtitle: files.prepared || 'prepared image',
       filename: files.prepared,
       previewKind: 'photo',
     },
+  ]
+
+  if (files.aligned_input) {
+    cards.push({
+      title: 'Aligned Input',
+      subtitle: files.aligned_input,
+      filename: files.aligned_input,
+      previewKind: 'photo',
+    })
+  }
+
+  cards.push(
     {
       title: 'Portrait',
       subtitle: files.raster_portrait || `${props.job.method} raster`,
@@ -42,7 +53,9 @@ const resultCards = computed(() => {
       filename: files.vector_render || files.vector_svg,
       previewKind: 'vector',
     },
-  ]
+  )
+
+  return cards
 })
 
 const vectorMetrics = computed(
@@ -65,9 +78,15 @@ const comparisonOptions = computed(() => {
     },
     {
       key: 'prepared',
-      label: 'Prepared',
+      label: files.aligned_input ? 'Pipeline Prepared' : 'Prepared',
       filename: files.prepared || '',
       url: fileUrl(files.prepared),
+    },
+    {
+      key: 'aligned',
+      label: 'Aligned Input',
+      filename: files.aligned_input || '',
+      url: fileUrl(files.aligned_input),
     },
     {
       key: 'portrait',
@@ -145,7 +164,12 @@ function formatMilliseconds(
       </div>
     </div>
 
-    <div class="result-grid">
+    <div
+      class="result-grid"
+      :class="{
+        'result-grid--expanded': resultCards.length > 4,
+      }"
+    >
       <article
         v-for="result in resultCards"
         :key="result.title"
@@ -171,6 +195,17 @@ function formatMilliseconds(
           <span>{{ result.subtitle }}</span>
         </div>
       </article>
+    </div>
+
+    <div
+      v-if="job.result_files.aligned_input"
+      class="aligned-input-note"
+    >
+      <strong>Aligned Input</strong>
+      <span>
+        YuNet 五点检测与 512×512 similarity alignment 后，
+        实际送入 APDrawingGAN 的图像。
+      </span>
     </div>
 
     <div class="metrics-grid">

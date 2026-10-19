@@ -492,3 +492,80 @@ def test_post_job_runs_real_worker_pipeline_end_to_end(tmp_path):
     )
     assert completed.status == "completed", completed.error
     assert completed.result_files["manifest"] == "manifest.json"
+
+
+def test_worker_exposes_apdrawinggan_aligned_input(tmp_path):
+    store = JobStore(tmp_path / "jobs")
+    record = store.create(
+        image_bytes=_png_bytes(),
+        original_filename="face.png",
+        method="apdrawinggan",
+        vector_mode="centerline",
+        size=512,
+    )
+
+    class _APDrawingGANPipeline:
+        def run(self, input_path, output_dir, *, method):
+            output_dir = Path(output_dir)
+            preprocess_dir = output_dir / "apdrawinggan_preprocess"
+            preprocess_dir.mkdir(parents=True, exist_ok=True)
+            aligned_path = preprocess_dir / "aligned.png"
+            aligned_path.write_bytes(b"aligned-image")
+
+            class _Result:
+                prepared_path = output_dir / "prepared.png"
+                raster_path = output_dir / f"{method}.png"
+                svg_path = output_dir / f"{method}.svg"
+                vector_render_path = (
+                    output_dir / f"{method}_vector_render.png"
+                )
+                manifest_path = output_dir / "manifest.json"
+                generation = {
+                    "metadata": {
+                        "apdrawinggan_preprocess": {
+                            "mode": "auto",
+                            "files": {
+                                "aligned_image": str(aligned_path),
+                            },
+                        },
+                    },
+                }
+
+            for path in (
+                _Result.prepared_path,
+                _Result.raster_path,
+                _Result.svg_path,
+                _Result.vector_render_path,
+                _Result.manifest_path,
+            ):
+                path.write_text("ok", encoding="utf-8")
+
+            return _Result()
+
+    worker = JobWorker(
+        store,
+        pipeline_builder=lambda **kwargs: _APDrawingGANPipeline(),
+    )
+    worker.start()
+
+    try:
+        worker.submit(record.job_id)
+        completed = _wait_for_status(
+            store,
+            record.job_id,
+            {"completed", "failed"},
+        )
+    finally:
+        worker.stop()
+
+    assert completed.status == "completed", completed.error
+    assert (
+        completed.result_files["aligned_input"]
+        == "apdrawinggan_aligned.png"
+    )
+
+    public_path = store.public_file_path(
+        record.job_id,
+        "apdrawinggan_aligned.png",
+    )
+    assert public_path.read_bytes() == b"aligned-image"
