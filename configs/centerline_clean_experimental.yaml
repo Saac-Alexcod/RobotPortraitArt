@@ -1,0 +1,28 @@
+# Experimental comparison ONLY. The stable Web default is unchanged.
+baseline:
+  max_side: 1024
+  bilateral_d: 9
+  bilateral_sigma_color: 75
+  bilateral_sigma_space: 75
+  adaptive_block_size: 11
+  adaptive_c: 2
+  morph_kernel: 2
+
+vector:
+  mode: centerline
+  min_area: 12.0
+  epsilon_ratio: 0.0025
+  stroke_width: 1.2
+  centerline_threshold: 185
+  centerline_spur_length_px: 5.0
+  centerline_min_stroke_length_px: 5.0
+  centerline_simplify_epsilon_px: 1.0
+  centerline_max_thinning_iterations: 2048
+  centerline_junction_cluster_radius_px: 1
+  centerline_merge_angle_deg: 35.0
+  centerline_merge_lookahead_px: 6.0
+  centerline_ordering_2opt_max_passes: 16
+  centerline_ordering_2opt_min_improvement_px: 0.01
+
+evaluation:
+  resize_to: 512

@@ -35,28 +35,15 @@ function chooseDefaults(): void {
     return
   }
 
-  const original = options.find(
-    (option) => option.key === 'original',
-  )
-  const vector = options.find(
-    (option) => option.key === 'vector',
-  )
-  const portrait = options.find(
-    (option) => option.key === 'portrait',
-  )
+  const original = options.find((option) => option.key === 'original')
+  const aligned = options.find((option) => option.key === 'aligned')
+  const portrait = options.find((option) => option.key === 'portrait')
+  const vector = options.find((option) => option.key === 'vector')
 
-  leftKey.value = (
-    original?.key
-    ?? options[0]?.key
-    ?? ''
-  )
-
-  rightKey.value = (
-    vector?.key
-    ?? portrait?.key
-    ?? options[1]?.key
-    ?? leftKey.value
-  )
+  // Compare the actual GAN input with its output by default.  Users can
+  // switch to Portrait / Robot Vector to inspect the vectorization stage.
+  leftKey.value = aligned?.key ?? original?.key ?? options[0]?.key ?? ''
+  rightKey.value = portrait?.key ?? vector?.key ?? options[1]?.key ?? leftKey.value
 
   if (
     rightKey.value === leftKey.value
@@ -104,6 +91,15 @@ const right = computed(
   ) ?? null,
 )
 
+const hasGanPair = computed(() => validOptions.value.some((option) => option.key === 'aligned') && validOptions.value.some((option) => option.key === 'portrait'))
+const hasVectorPair = computed(() => validOptions.value.some((option) => option.key === 'portrait') && validOptions.value.some((option) => option.key === 'vector'))
+
+function selectPair(first: string, second: string): void {
+  leftKey.value = first
+  rightKey.value = second
+  split.value = 50
+}
+
 function setLeft(key: string): void {
   leftKey.value = key
 
@@ -148,6 +144,12 @@ function setRight(key: string): void {
       <div class="comparison-value">
         {{ split }}%
       </div>
+    </div>
+
+    <div class="comparison-presets" aria-label="推荐对比组合">
+      <span>快速切换</span>
+      <button v-if="hasGanPair" type="button" :class="{ 'comparison-presets__active': leftKey === 'aligned' && rightKey === 'portrait' }" @click="selectPair('aligned','portrait')">模型输入 ↔ GAN 输出</button>
+      <button v-if="hasVectorPair" type="button" :class="{ 'comparison-presets__active': leftKey === 'portrait' && rightKey === 'vector' }" @click="selectPair('portrait','vector')">艺术线稿 ↔ 机器人轨迹</button>
     </div>
 
     <div class="comparison-pickers">

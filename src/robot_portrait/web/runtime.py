@@ -131,12 +131,45 @@ def build_default_pipeline() -> GenerationPipeline:
 
 
 def default_generator_statuses() -> dict[str, dict[str, object]]:
-    """Return JSON-ready status metadata for the default web generators."""
+    """Return JSON-ready status metadata for the default web generators.
 
-    return (
-        build_default_pipeline()
-        .generator_statuses()
-    )
+    APDrawingGAN preflight touches WSL and CUDA and can fail for reasons that
+    should not take the whole Web API down.  Fail closed for that external
+    method while preserving the always-local OpenCV baseline.
+    """
+
+    try:
+        return (
+            build_default_pipeline()
+            .generator_statuses()
+        )
+    except Exception as exc:
+        baseline = (
+            BaselineGenerator()
+            .status()
+            .to_metadata()
+        )
+
+        return {
+            "apdrawinggan": {
+                "available": False,
+                "reason": (
+                    "APDrawingGAN preflight 异常："
+                    f"{type(exc).__name__}: {exc}"
+                ),
+                "details": {
+                    "backend": "apdrawinggan",
+                    "preflight_exception": {
+                        "type": type(exc).__name__,
+                        "message": str(exc),
+                    },
+                    "auto_preprocess": {
+                        "available": False,
+                    },
+                },
+            },
+            "baseline": baseline,
+        }
 
 
 def default_supported_methods() -> tuple[str, ...]:

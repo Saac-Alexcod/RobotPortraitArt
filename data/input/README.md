@@ -1,9 +1,22 @@
-# 输入照片
+# 本地输入照片
 
-将自己的单张人脸照片放在此目录，例如 `face.jpg` 或 `face.png`。命令中的扩展名必须与实际文件名一致；当前工作区示例文件是 `face.png`，因此应运行：
+这里用于放置你自己的测试照片或合法获得的授权照片，例如 `data/input/face.jpg`。该目录中的个人输入默认由 `.gitignore` 忽略，不会自动提交到 Git。
 
-```powershell
-python scripts/prepare_image.py --input data/input/face.png --output outputs/face_prepared.png --size 512
+无需自己寻找照片时，可以直接使用公开的项目示例：
+
+```text
+data/examples/portrait_sample.jpg
 ```
 
-仓库中的 `demo_face.png` 是流程演示图，不代表真实实验数据。
+在 Web 界面手动选择该文件，或在项目根目录执行：
+
+```powershell
+python scripts/run_pipeline.py `
+  --input data/examples/portrait_sample.jpg `
+  --output-dir outputs/sample_baseline `
+  --method baseline `
+  --config configs/centerline.yaml `
+  --size 512
+```
+
+`data/input/demo_face.png` 是简笔画测试素材，不是自然人脸照片，不能用于证明 YuNet 或 APDrawingGAN 的真实人脸处理性能。
