@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 import json
+import time
+from threading import Lock
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from .jobs import (
     InvalidImageError,
@@ -194,10 +197,28 @@ def create_app(
             "max_upload_bytes 必须为正整数"
         )
 
-    status_provider = (
-        generator_status_provider
-        or default_generator_statuses
-    )
+    # WSL/CUDA preflight can take seconds. Share its result between the
+    # methods panel and job submission, but expire it promptly. The worker's
+    # execution-time check remains authoritative.
+    _status_lock = Lock()
+    _cached_statuses: dict[str, dict[str, Any]] | None = None
+    _cache_until = 0.0
+
+    def _default_statuses_cached(*, refresh: bool = False) -> dict[str, dict[str, Any]]:
+        nonlocal _cached_statuses, _cache_until
+        with _status_lock:
+            now = time.monotonic()
+            if not refresh and _cached_statuses is not None and now < _cache_until:
+                return _cached_statuses
+            result = default_generator_statuses()
+            # Shorter negative cache so newly installed models recover fast.
+            apd = result.get("apdrawinggan", {})
+            ttl = 30.0 if _effective_method_metadata("apdrawinggan", apd).get("available") else 5.0
+            _cached_statuses = result
+            _cache_until = time.monotonic() + ttl
+            return result
+
+    status_provider = generator_status_provider or _default_statuses_cached
     methods_provider = (
         supported_methods_provider
         or default_supported_methods
@@ -264,8 +285,11 @@ def create_app(
         tags=["generation"],
         summary="List portrait generation methods",
     )
-    def methods() -> MethodsResponse:
-        statuses = status_provider()
+    def methods(refresh: bool = False) -> MethodsResponse:
+        if refresh and generator_status_provider is None:
+            statuses = _default_statuses_cached(refresh=True)
+        else:
+            statuses = status_provider()
 
         return MethodsResponse(
             methods=[
@@ -498,7 +522,7 @@ def create_app(
             method_status = (
                 _effective_method_metadata(
                     method,
-                    status_provider().get(
+                    (await run_in_threadpool(status_provider)).get(
                         method
                     ),
                 )
