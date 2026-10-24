@@ -72,3 +72,6 @@ dist/
 *.bak
 Thumbs.db
 .DS_Store
+# Frontend dependencies and Vite cache
+node_modules/
+.vite/

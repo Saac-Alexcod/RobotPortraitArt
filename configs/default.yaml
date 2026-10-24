@@ -8,9 +8,20 @@ baseline:
   morph_kernel: 2
 
 vector:
+  mode: contour
   min_area: 12.0
   epsilon_ratio: 0.0025
   stroke_width: 1.2
+  centerline_threshold: 220
+  centerline_spur_length_px: 3.0
+  centerline_min_stroke_length_px: 2.0
+  centerline_simplify_epsilon_px: 0.8
+  centerline_max_thinning_iterations: 2048
+  centerline_junction_cluster_radius_px: 1
+  centerline_merge_angle_deg: 35.0
+  centerline_merge_lookahead_px: 6.0
+  centerline_ordering_2opt_max_passes: 16
+  centerline_ordering_2opt_min_improvement_px: 0.01
 
 evaluation:
   resize_to: 512

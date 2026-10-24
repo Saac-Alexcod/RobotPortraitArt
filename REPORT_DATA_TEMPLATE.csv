@@ -1,1 +1,1 @@
-sample_id,method,ssim,edge_f1,lpips,svg_paths,svg_bytes,eyes_score,eyebrows_score,nose_score,mouth_score,contour_score,hair_score,notes
+﻿sample_id,method,vector_mode,ssim,edge_f1,lpips,svg_paths,svg_bytes,stroke_count,raw_stroke_count,closed_stroke_count,pen_down_length_px,pen_up_length_px,connected_component_count,odd_vertex_count,theoretical_min_trail_count,edge_reuse_count,two_opt_improvement_px,two_opt_improvement_ratio,vectorize_ms,total_ms,eyes_score,eyebrows_score,nose_score,mouth_score,contour_score,hair_score,notes
