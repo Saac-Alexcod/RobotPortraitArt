@@ -12,6 +12,7 @@ import type {
 const props = defineProps<{
   job: JobStatusResponse
   manifest: ManifestResponse | null
+  manifestError?: string | null
 }>()
 
 const resultCards = computed(() => {
@@ -101,6 +102,13 @@ const comparisonOptions = computed(() => {
       url: fileUrl(files.vector_render || files.vector_svg),
     },
   ]
+})
+
+const optimization = computed(() => {
+  const ratio = vectorMetrics.value?.two_opt_improvement_ratio
+  return typeof ratio === 'number' && Number.isFinite(ratio)
+    ? `${(ratio * 100).toFixed(2)}%`
+    : null
 })
 
 const strokeCount = computed(
@@ -210,12 +218,12 @@ function formatMilliseconds(
 
     <div class="metrics-grid">
       <article>
-        <span>Stroke Count</span>
+        <span>绘制笔画数 · Strokes</span>
         <strong>{{ formatNumber(strokeCount) }}</strong>
       </article>
 
       <article>
-        <span>Pen-down</span>
+        <span>落笔长度 · Pen-down</span>
         <strong>
           {{ formatNumber(vectorMetrics?.pen_down_length_px, 1) }}
           <small>px</small>
@@ -223,7 +231,7 @@ function formatMilliseconds(
       </article>
 
       <article>
-        <span>Pen-up</span>
+        <span>抬笔空程 · Pen-up</span>
         <strong>
           {{ formatNumber(vectorMetrics?.pen_up_length_px, 1) }}
           <small>px</small>
@@ -231,18 +239,31 @@ function formatMilliseconds(
       </article>
 
       <article>
-        <span>Vectorize</span>
+        <span>矢量化耗时</span>
         <strong>{{ formatMilliseconds(timings?.vectorize) }}</strong>
       </article>
 
       <article>
-        <span>Total Time</span>
+        <span>任务总耗时</span>
         <strong>{{ formatMilliseconds(timings?.total) }}</strong>
+      </article>
+
+      <article v-if="optimization !== null" class="metric-optimization">
+        <span>2-opt 空程优化率</span>
+        <strong>↓ {{ optimization }}</strong>
+        <small v-if="typeof vectorMetrics?.pen_up_greedy_px === 'number'">
+          {{ formatNumber(vectorMetrics.pen_up_greedy_px, 1) }} →
+          {{ formatNumber(vectorMetrics.pen_up_length_px, 1) }} px
+        </small>
       </article>
     </div>
 
+    <p class="metrics-explainer">
+      落笔长度表示画线行程；抬笔空程表示笔尖离纸后的移动距离。优化率对比 Greedy 初始排序与 2-opt 排序，不代表笔画质量提升。
+    </p>
+
     <div v-if="!manifest" class="manifest-loading">
-      Job 已完成，正在读取 manifest 指标…
+      {{ manifestError || '任务已完成，正在读取 Manifest 指标…' }}
     </div>
 
     <ResultComparison

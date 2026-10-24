@@ -35,28 +35,15 @@ function chooseDefaults(): void {
     return
   }
 
-  const original = options.find(
-    (option) => option.key === 'original',
-  )
-  const vector = options.find(
-    (option) => option.key === 'vector',
-  )
-  const portrait = options.find(
-    (option) => option.key === 'portrait',
-  )
+  const original = options.find((option) => option.key === 'original')
+  const aligned = options.find((option) => option.key === 'aligned')
+  const portrait = options.find((option) => option.key === 'portrait')
+  const vector = options.find((option) => option.key === 'vector')
 
-  leftKey.value = (
-    original?.key
-    ?? options[0]?.key
-    ?? ''
-  )
-
-  rightKey.value = (
-    vector?.key
-    ?? portrait?.key
-    ?? options[1]?.key
-    ?? leftKey.value
-  )
+  // Compare the actual GAN input with its output by default.  Users can
+  // switch to Portrait / Robot Vector to inspect the vectorization stage.
+  leftKey.value = aligned?.key ?? original?.key ?? options[0]?.key ?? ''
+  rightKey.value = portrait?.key ?? vector?.key ?? options[1]?.key ?? leftKey.value
 
   if (
     rightKey.value === leftKey.value

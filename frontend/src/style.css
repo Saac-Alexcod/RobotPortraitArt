@@ -2083,3 +2083,27 @@ footer {
     aspect-ratio: 1 / 1;
   }
 }
+
+/* Final presentation refinement: preserve algorithm output and improve readability. */
+.hero--compact { min-height: 0; padding-top: 44px; padding-bottom: 46px; gap: 44px; }
+.hero--compact h1 { font-size: clamp(2.5rem, 4.7vw, 4.35rem); line-height: 1.08; }
+.workflow-section { padding: 32px 0 42px; border-top: 1px solid var(--border); }
+.job-section { padding-top: 42px; }
+.method-role { display: inline-flex; margin-top: 6px; color: var(--blue-dark); font-size: 0.68rem; font-style: normal; font-weight: 750; }
+.metrics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.metrics-grid article { min-height: 86px; padding: 18px; }
+.metrics-grid span { font-size: 0.71rem; color: #647999; letter-spacing: .02em; text-transform: none; }
+.metrics-grid strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.metric-optimization { border-color: rgba(34, 154, 124, .24) !important; background: rgba(37, 178, 144, .045) !important; }
+.metric-optimization strong { color: #14866f; }
+.metric-optimization small { display: block; margin-top: 7px; font-size: .71rem; }
+.metrics-explainer { margin: 12px 0 0; color: var(--muted); line-height: 1.65; font-size: .73rem; }
+.simulation-path { stroke-width: 1.55; }
+.simulation-penup { stroke-width: 2.0; }
+@media (max-width: 760px) {
+  .hero--compact { padding-top: 24px; gap: 25px; }
+  .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .metrics-grid { grid-template-columns: 1fr; }
+}
