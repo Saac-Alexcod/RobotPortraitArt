@@ -115,42 +115,42 @@ const overallProgress = computed(() => {
 
 const statusLabel = computed(() => {
   if (loadState.value === 'loading') {
-    return 'Loading SVG'
+    return '正在读取 SVG'
   }
 
   if (loadState.value === 'error') {
-    return 'SVG unavailable'
+    return 'SVG 不可用'
   }
 
   if (phase.value === 'complete') {
-    return 'Drawing complete'
+    return '绘制完成'
   }
 
   if (phase.value === 'penup') {
     return (
-      `Pen-up move ${currentIndex.value}`
+      `抬笔移动 ${currentIndex.value}`
       + ` → ${currentIndex.value + 1}`
     )
   }
 
   if (phase.value === 'drawing') {
     return (
-      `Drawing stroke ${currentIndex.value + 1}`
+      `绘制第 ${currentIndex.value + 1} 笔`
       + ` / ${totalPaths.value}`
     )
   }
 
-  return `${totalPaths.value} strokes ready`
+  return `${totalPaths.value} 笔待绘制`
 })
 
 const playButtonLabel = computed(() => {
   if (phase.value === 'complete') {
-    return 'Play Again'
+    return '重新播放'
   }
 
   return isPlaying.value
-    ? 'Pause'
-    : 'Play Drawing'
+    ? '暂停'
+    : '开始绘制'
 })
 
 const currentPoint = computed<Point | null>(() => {
@@ -628,6 +628,7 @@ onBeforeUnmount(() => {
           class="simulation-button simulation-button--primary"
           type="button"
           :disabled="loadState !== 'ready'"
+          :aria-label="isPlaying ? '暂停轨迹播放' : '播放机器人绘制轨迹'"
           @click="togglePlayback"
         >
           {{ playButtonLabel }}
@@ -639,13 +640,13 @@ onBeforeUnmount(() => {
           :disabled="loadState !== 'ready'"
           @click="restart"
         >
-          Restart
+          重播
         </button>
       </div>
     </div>
 
     <div class="simulation-layout">
-      <div class="simulation-canvas">
+      <div class="simulation-canvas" :class="{ 'simulation-canvas--idle': !isPlaying && phase === 'idle', 'simulation-canvas--active': isPlaying }">
         <div
           v-if="loadState === 'loading'"
           class="simulation-message"
@@ -737,7 +738,7 @@ onBeforeUnmount(() => {
       <aside class="simulation-panel">
         <div class="simulation-progress">
           <div class="simulation-progress__label">
-            <span>Progress</span>
+            <span>绘制进度</span>
             <strong>{{ overallProgress.toFixed(1) }}%</strong>
           </div>
 
@@ -751,7 +752,7 @@ onBeforeUnmount(() => {
 
         <dl class="simulation-kv">
           <div>
-            <dt>Path</dt>
+            <dt>当前笔画</dt>
             <dd>
               {{
                 totalPaths > 0
@@ -762,18 +763,18 @@ onBeforeUnmount(() => {
           </div>
 
           <div>
-            <dt>Completed</dt>
+            <dt>已完成</dt>
             <dd>{{ completedPaths }}</dd>
           </div>
 
           <div>
-            <dt>Phase</dt>
-            <dd>{{ phase }}</dd>
+            <dt>当前阶段</dt>
+            <dd>{{ phase === 'drawing' ? '落笔绘制' : phase === 'penup' ? '抬笔移动' : phase === 'complete' ? '已完成' : '就绪' }}</dd>
           </div>
         </dl>
 
         <div class="simulation-speed">
-          <span>Playback speed</span>
+          <span>播放速度</span>
 
           <div class="simulation-speed__options">
             <button
@@ -784,6 +785,8 @@ onBeforeUnmount(() => {
                 'simulation-speed__active':
                   speedMultiplier === option,
               }"
+              :aria-pressed="speedMultiplier === option"
+              :aria-label="`以 ${option} 倍速度播放`"
               @click="speedMultiplier = option"
             >
               {{ option }}×
