@@ -1,6 +1,6 @@
-# Local history and request timing
+# Local history and request timing (v1.0.1 feature note)
 
-This note documents the experimental web UX enhancement without changing the portrait pipeline or plotter path algorithm.
+This document describes the features integrated into the public `v1.0.1` source tag. It does not modify or measure the historical 2026-10-19 face benchmark, and neither history recovery nor preflight caching accelerates GPU inference itself. The browser interaction was reviewed during development; quantitative end-to-end speedups have **not** been established by a controlled timing study.
 
 ## Recent inputs and tasks
 
@@ -16,7 +16,7 @@ This note documents the experimental web UX enhancement without changing the por
 - The backend temporarily reuses its default APDrawingGAN preflight result across method discovery and task creation. Healthy status TTL: 30 seconds. Unavailable status TTL: 5 seconds. `GET /api/methods?refresh=true` forces a live recheck. When no cached result is present, preflight runs on a thread pool so the FastAPI event loop stays responsive.
 - The GPU worker remains **single-threaded**. Pipeline execution performs its own safety checks, and repeated model startup or heavyweight inference remains outside the status cache. This design optimizes repeated submissions but does not claim to speed up cold inference.
 
-## Verification
+## Verification and limits
 
 - Python tests: web API default status is called once across repeated discovery and task submission, but called again on explicit refresh.
-- Client-side IndexedDB state is implementation-checked and TS syntax/type checked. Full Vue build and real browser interaction should be tested on Windows using existing local npm dependencies.
+- Client-side IndexedDB state is implementation-checked and TS syntax/type checked. At pre-release time full Vue build and real-browser automation were not completed in the isolated test environment. The user subsequently confirmed the Windows functionality before publishing v1.0.1; no independent browser automation or controlled latency benchmark is archived here.
