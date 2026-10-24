@@ -96,6 +96,72 @@ def _job_not_found(
     )
 
 
+
+
+def _effective_method_metadata(
+    name: str,
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Return method status as it applies to the Web workflow.
+
+    APDrawingGAN's reusable wrapper can remain available for manual
+    landmark/mask input even when the automatic YuNet/PPHumanSeg models are
+    missing.  The Web UI does not expose those manual auxiliary inputs, so its
+    method availability must also require automatic preprocessing.
+    """
+
+    effective = dict(metadata or {})
+    effective.setdefault(
+        "available",
+        False,
+    )
+    effective.setdefault(
+        "reason",
+        None,
+    )
+    raw_details = effective.get(
+        "details"
+    )
+    effective[
+        "details"
+    ] = (
+        dict(raw_details)
+        if isinstance(
+            raw_details,
+            dict,
+        )
+        else {}
+    )
+
+    if name != "apdrawinggan":
+        return effective
+
+    auto = effective[
+        "details"
+    ].get(
+        "auto_preprocess"
+    )
+
+    if (
+        bool(effective.get("available"))
+        and not (
+            isinstance(auto, dict)
+            and auto.get("available") is True
+        )
+    ):
+        effective[
+            "available"
+        ] = False
+        effective[
+            "reason"
+        ] = (
+            "APDrawingGAN 自动预处理不可用："
+            "请检查 YuNet 与 PPHumanSeg 模型。"
+        )
+
+    return effective
+
+
 def _media_type_for(
     path: Path,
 ) -> str:
@@ -158,6 +224,11 @@ def create_app(
     async def lifespan(
         _: FastAPI,
     ):
+        # Only recover existing persisted jobs at app/process startup; do not
+        # change the standalone JobWorker.start() semantics, as clients may
+        # enqueue jobs immediately before explicitly starting a worker.
+        if isinstance(worker, JobWorker):
+            jobs.fail_interrupted_jobs()
         worker.start()
         try:
             yield
@@ -200,20 +271,9 @@ def create_app(
             methods=[
                 MethodStatus(
                     name=name,
-                    available=bool(
-                        metadata.get(
-                            "available",
-                            False,
-                        )
-                    ),
-                    reason=metadata.get(
-                        "reason"
-                    ),
-                    details=dict(
-                        metadata.get(
-                            "details",
-                            {},
-                        )
+                    **_effective_method_metadata(
+                        name,
+                        metadata,
                     ),
                 )
                 for name, metadata
@@ -430,6 +490,40 @@ def create_app(
                     ),
                 },
             )
+
+        # Baseline is an in-process OpenCV generator and has no external
+        # preflight.  Only APDrawingGAN needs an availability gate here; this
+        # keeps the Baseline fallback responsive even when WSL/CUDA is down.
+        if method == "apdrawinggan":
+            method_status = (
+                _effective_method_metadata(
+                    method,
+                    status_provider().get(
+                        method
+                    ),
+                )
+            )
+
+            if not method_status[
+                "available"
+            ]:
+                raise HTTPException(
+                    status_code=(
+                        status.HTTP_503_SERVICE_UNAVAILABLE
+                    ),
+                    detail={
+                        "code": "method_unavailable",
+                        "message": (
+                            method_status.get(
+                                "reason"
+                            )
+                            or (
+                                "APDrawingGAN 当前不可用"
+                            )
+                        ),
+                        "method": method,
+                    },
+                )
 
         payload = await image.read(
             max_upload_bytes + 1

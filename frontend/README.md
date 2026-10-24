@@ -1,4 +1,4 @@
-# RobotPortraitArt Web Demo
+# RobotPortraitArt · Final Course Demo (2026-10-24)
 
 Vue 3 + TypeScript + Vite frontend for the RobotPortraitArt FastAPI service.
 
@@ -12,7 +12,7 @@ Vue 3 + TypeScript + Vite frontend for the RobotPortraitArt FastAPI service.
 
 ```powershell
 cd frontend
-npm install
+npm ci
 ```
 
 ## Validate
@@ -52,7 +52,7 @@ http://127.0.0.1:5173
 
 Vite proxies `/api/*` to `http://127.0.0.1:8000`.
 
-## Current Web Demo scope
+## Implemented Web Demo scope
 
 - live FastAPI health and generator availability
 - image selection, drag-and-drop, validation, and local preview
@@ -68,3 +68,12 @@ Vite proxies `/api/*` to `http://127.0.0.1:8000`.
 
 The frontend intentionally reuses the existing FastAPI API and does not
 reimplement portrait generation or vectorization logic in the browser.
+
+
+## Presentation conventions
+
+- Default selected generator: APDrawingGAN when reported available; otherwise fall back to Baseline.
+- Pipeline cards describe the real processing stages, not release history.
+- 2-opt ratio comes from server Manifest as a fraction; the UI displays it as a percentage.
+- The Robot Drawing panel plays the *software-generated* SVG path order; it does not command real robot hardware.
+- On errors, check `/api/health`, `/api/methods`, and the browser Network tab. No account/database is required.

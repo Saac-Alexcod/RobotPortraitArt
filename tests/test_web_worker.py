@@ -569,3 +569,30 @@ def test_worker_exposes_apdrawinggan_aligned_input(tmp_path):
         "apdrawinggan_aligned.png",
     )
     assert public_path.read_bytes() == b"aligned-image"
+
+
+def test_worker_start_recovers_orphaned_jobs_without_touching_completed(tmp_path):
+    """Unclean shutdown must not leave jobs permanently queued/running."""
+    store = JobStore(tmp_path / "jobs")
+    data = _png_bytes()
+    orphan_queued = store.create(
+        image_bytes=data, original_filename="queued.png",
+        method="baseline", vector_mode="centerline", size=512,
+    )
+    orphan_running = store.create(
+        image_bytes=data, original_filename="running.png",
+        method="baseline", vector_mode="centerline", size=512,
+    )
+    store.mark_running(orphan_running.job_id)
+    completed = store.create(
+        image_bytes=data, original_filename="done.png",
+        method="baseline", vector_mode="centerline", size=512,
+    )
+    store.mark_completed(completed.job_id, result_files={"prepared": "prepared.png"})
+    recovered = store.fail_interrupted_jobs()
+    assert recovered == 2
+    for job_id in (orphan_queued.job_id, orphan_running.job_id):
+        current = store.get(job_id)
+        assert current.status == "failed"
+        assert "重启" in current.error["message"]
+    assert store.get(completed.job_id).status == "completed"

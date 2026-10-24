@@ -29,30 +29,31 @@ import StageCard from './components/StageCard.vue'
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 const POLL_INTERVAL_MS = 900
 const POLL_RETRY_MS = 1500
+const MAX_POLL_FAILURES = 10
 
 const stages = [
   {
     step: '01',
-    title: '上传肖像',
-    description: '选择人脸照片，作为艺术线稿生成和机器人绘制的输入。',
+    title: '人脸预处理',
+    description: 'YuNet 检测、五点对齐与 PPHumanSeg 前景处理。',
     status: 'ready' as const,
   },
   {
     step: '02',
-    title: '生成线稿',
-    description: '通过 Baseline 或 APDrawingGAN 生成肖像艺术线稿。',
+    title: '艺术肖像生成',
+    description: 'APDrawingGAN 生成艺术肖像；OpenCV Baseline 用于对照。',
     status: 'ready' as const,
   },
   {
     step: '03',
-    title: '矢量化',
-    description: '使用 contour 或 centerline 提取可执行的绘制路径。',
+    title: '提取矢量笔画',
+    description: 'Contour 或 Centerline 将栅格线稿转换为 SVG 笔画。',
     status: 'ready' as const,
   },
   {
     step: '04',
-    title: '机器人轨迹',
-    description: '按规划后的 SVG path 顺序展示机器人落笔、抬笔和连续绘制。',
+    title: '路径规划与模拟',
+    description: 'Minimum-Lift、Greedy + 2-opt 排序，逐笔模拟 Pen-down / Pen-up。',
     status: 'ready' as const,
   },
 ]
@@ -64,7 +65,7 @@ const backendError = ref<string | null>(null)
 
 const selectedFile = ref<File | null>(null)
 const previewUrl = ref<string | null>(null)
-const selectedMethod = ref('baseline')
+const selectedMethod = ref('apdrawinggan')
 const selectedVectorMode = ref<VectorMode>('centerline')
 const selectedSize = ref(512)
 const fileError = ref<string | null>(null)
@@ -77,6 +78,7 @@ const pollError = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 let pollTimer: number | null = null
+let pollFailures = 0
 
 const backendOnline = computed(
   () => (
@@ -195,6 +197,7 @@ function resetJobTracking(): void {
   jobStatus.value = null
   manifest.value = null
   pollError.value = null
+  pollFailures = 0
 }
 
 async function pollJob(jobId: string): Promise<void> {
@@ -211,9 +214,16 @@ async function pollJob(jobId: string): Promise<void> {
 
     jobStatus.value = current
     pollError.value = null
+    pollFailures = 0
 
     if (current.status === 'completed') {
-      manifest.value = await getManifest(jobId)
+      try {
+        manifest.value = await getManifest(jobId)
+      } catch (error: unknown) {
+        pollError.value = (error instanceof Error
+          ? `任务已完成，但指标读取失败：${error.message}`
+          : '任务已完成，但指标读取失败。')
+      }
       return
     }
 
@@ -234,13 +244,17 @@ async function pollJob(jobId: string): Promise<void> {
         : '任务状态读取失败。'
     )
 
-    if (createdJob.value?.job_id === jobId) {
+    pollFailures += 1
+    if (
+      createdJob.value?.job_id === jobId
+      && pollFailures < MAX_POLL_FAILURES
+    ) {
       pollTimer = window.setTimeout(
-        () => {
-          void pollJob(jobId)
-        },
-        POLL_RETRY_MS,
+        () => { void pollJob(jobId) },
+        Math.min(5000, POLL_RETRY_MS * pollFailures),
       )
+    } else if (createdJob.value?.job_id === jobId) {
+      pollError.value = '与后端的连接暂时中断，请点击「重新连接任务」。'
     }
   }
 }
@@ -250,6 +264,7 @@ function startPolling(jobId: string): void {
   jobStatus.value = null
   manifest.value = null
   pollError.value = null
+  pollFailures = 0
   void pollJob(jobId)
 }
 
@@ -484,7 +499,7 @@ onBeforeUnmount(() => {
 
       <div class="topbar__badge">
         <span class="status-dot"></span>
-        Web Demo V6
+        课程设计 · 最终演示版
       </div>
     </header>
 
@@ -499,8 +514,8 @@ onBeforeUnmount(() => {
           </h1>
 
           <p>
-            V6 在完整任务链上加入真实 SVG Path 动画与 A/B 结果对比，
-            直观看到生成、矢量化与轨迹规划的变化。
+            集成人脸自动对齐、APDrawingGAN 肖像生成、中心线提取与路径规划，
+            从真实结果直观检查每一步，并模拟机器人逐笔绘制。
           </p>
 
           <div class="hero__actions">
@@ -510,7 +525,7 @@ onBeforeUnmount(() => {
               @click="chooseFile"
             >
               选择图片
-              <span>V6</span>
+              <span>开始创作</span>
             </button>
 
             <div
@@ -543,7 +558,7 @@ onBeforeUnmount(() => {
                 <span class="canvas-card__label">CENTERLINE PREVIEW</span>
                 <strong>Robot drawing path</strong>
               </div>
-              <span class="canvas-card__counter">Benchmark · 431 paths</span>
+              <span class="canvas-card__counter">Live path preview</span>
             </div>
 
             <div class="portrait-canvas">
@@ -585,6 +600,27 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
+      <section class="workflow-section">
+        <div class="section-heading">
+          <div>
+            <span>PIPELINE</span>
+            <h2>完整算法处理流程</h2>
+          </div>
+          <p>
+            所有阶段都对应真实程序执行过程，最终由优化后的 SVG 路径驱动绘制模拟。
+          </p>
+        </div>
+
+        <div class="stage-grid">
+          <StageCard
+            v-for="stage in stages"
+            :key="stage.step"
+            v-bind="stage"
+          />
+        </div>
+      </section>
+
+
       <section class="job-section">
         <div class="section-heading">
           <div>
@@ -592,8 +628,7 @@ onBeforeUnmount(() => {
             <h2>创建生成任务</h2>
           </div>
           <p>
-            创建真实 job 后，页面会自动轮询 queued / running /
-            completed / failed，并在完成后加载结果文件与 Manifest。
+            上传照片，选择生成方法与矢量化模式。系统自动处理任务并展示每个阶段的真实结果。
           </p>
         </div>
 
@@ -647,7 +682,7 @@ onBeforeUnmount(() => {
 
           <form class="job-form" @submit.prevent="submitJob">
             <fieldset>
-              <legend>Generator</legend>
+              <legend>肖像生成方法 · Generator</legend>
 
               <div class="option-grid">
                 <button
@@ -664,6 +699,7 @@ onBeforeUnmount(() => {
                 >
                   <span>
                     <strong>{{ methodDisplayName(method.name) }}</strong>
+                    <em class="method-role">{{ method.name === 'apdrawinggan' ? '主方法' : '对照方法' }}</em>
                     <small>{{ backendDetail(method) }}</small>
                   </span>
 
@@ -674,14 +710,14 @@ onBeforeUnmount(() => {
                       'method-badge--unavailable': !method.available,
                     }"
                   >
-                    {{ method.available ? 'Available' : 'Unavailable' }}
+                    {{ method.available ? '可用' : '不可用' }}
                   </span>
                 </button>
               </div>
             </fieldset>
 
             <fieldset>
-              <legend>Vector Mode</legend>
+              <legend>轨迹提取方式 · Vector Mode</legend>
 
               <div class="segmented-control">
                 <label>
@@ -711,7 +747,7 @@ onBeforeUnmount(() => {
             </fieldset>
 
             <fieldset>
-              <legend>Output Size</legend>
+              <legend>输出画布 · Output Size</legend>
 
               <label class="size-field">
                 <span>
@@ -740,7 +776,7 @@ onBeforeUnmount(() => {
               {{
                 isSubmitting
                   ? '正在创建任务…'
-                  : 'Generate Portrait'
+                  : '生成艺术肖像与机器人轨迹'
               }}
             </button>
 
@@ -787,6 +823,12 @@ onBeforeUnmount(() => {
 
               <p v-if="pollError" class="job-live-error">
                 {{ pollError }}
+                <button
+                  v-if="createdJob && jobStatus?.status !== 'completed' && jobStatus?.status !== 'failed'"
+                  type="button"
+                  class="text-button"
+                  @click="startPolling(createdJob.job_id)"
+                >重新连接任务</button>
               </p>
 
               <p
@@ -804,27 +846,8 @@ onBeforeUnmount(() => {
           v-if="jobStatus?.status === 'completed'"
           :job="jobStatus"
           :manifest="manifest"
+          :manifest-error="pollError"
         />
-      </section>
-
-      <section class="workflow-section">
-        <div class="section-heading">
-          <div>
-            <span>PIPELINE</span>
-            <h2>Web Demo 开发路径</h2>
-          </div>
-          <p>
-            V6 已完成结果对比与真实 SVG path 机器人绘制模拟。
-          </p>
-        </div>
-
-        <div class="stage-grid">
-          <StageCard
-            v-for="stage in stages"
-            :key="stage.step"
-            v-bind="stage"
-          />
-        </div>
       </section>
 
       <section class="live-status-section">
@@ -918,7 +941,7 @@ onBeforeUnmount(() => {
                     'method-badge--unavailable': !method.available,
                   }"
                 >
-                  {{ method.available ? 'Available' : 'Unavailable' }}
+                  {{ method.available ? '可用' : '不可用' }}
                 </span>
               </div>
             </div>
@@ -929,7 +952,7 @@ onBeforeUnmount(() => {
 
     <footer>
       <span>RobotPortraitArt</span>
-      <span>Vue3 + TypeScript Web Demo · V6</span>
+      <span>Vue 3 · FastAPI · APDrawingGAN · Centerline · SVG</span>
     </footer>
   </div>
 </template>

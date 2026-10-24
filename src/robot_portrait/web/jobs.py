@@ -239,6 +239,33 @@ class JobStore:
             record
         )
 
+    def fail_interrupted_jobs(self) -> int:
+        """Close orphaned queued/running jobs after a process restart.
+
+        This app runs one local worker process.  Previous queued/running
+        records have no in-memory future after an unclean restart; leaving
+        them active would cause clients to poll indefinitely.  Completed and
+        failed records, along with all generated files, are preserved.
+        """
+        recovered = 0
+        with self._lock:
+            if not self.root.is_dir():
+                return 0
+            for job_path in self.root.iterdir():
+                if not job_path.is_dir() or not _JOB_ID_PATTERN.fullmatch(job_path.name):
+                    continue
+                try:
+                    record = self.get(job_path.name)
+                except (JobNotFoundError, OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
+                    continue  # Malformed unrelated metadata must not block startup.
+                if record.status in {"queued", "running"}:
+                    self.mark_failed(
+                        record.job_id,
+                        RuntimeError("服务器重启中断了任务；请重新提交图片。"),
+                    )
+                    recovered += 1
+        return recovered
+
     def mark_running(
         self,
         job_id: str,

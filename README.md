@@ -8,6 +8,37 @@
 
 ---
 
+## 答辩冻结候选版（2026-10-24）
+
+- 前端：Vue 3 / TypeScript / Vite，真实任务提交、状态跟踪、结果五阶段、A/B 对比和 SVG 逐笔模拟；
+- 后端：FastAPI + 单线程 JobWorker + 文件系统持久化任务；
+- 生成：OpenCV Baseline（对照） / APDrawingGAN（主方法，WSL/CUDA）；
+- 矢量：Contour / Centerline + Minimum-Lift + Greedy/2-opt；
+- 报告资料：`docs/FINAL_HANDOFF_20261024.md`（功能说明、实验边界、演示顺序、组员交接）；
+- 质量对照：`scripts/compare_vector_presets.py`，仅重矢量化、无需重新推理；**实验配置不是默认质量改进声明**。
+
+### 启动 Web Demo（Windows）
+
+```powershell
+# 终端 1：项目根目录，先激活 .venv
+.\scripts\start_web.ps1
+
+# 终端 2
+cd frontend
+npm ci
+npm run typecheck
+npm run build
+npm run dev
+```
+
+打开 `http://127.0.0.1:5173`；确认 `GET /api/methods` 的 APDrawingGAN 状态为 `available`。
+若 WSL/CUDA 不可用，后端默认继续提供 Baseline；严格模式可用 `-RequireAPDrawingGAN`。
+模型权重、ONNX 文件、CelebA 和私人图片不在 Git 源码包中，必须在答辩机器保留原有本地环境。
+
+> 状态说明：178 项 Python 测试通过，Windows 端上一轮 P0 修改已实测真实 APDrawingGAN 任务完成。此次最终版新增的 UI/任务恢复逻辑需在答辩机进行最后一次 `npm run build` 和页面回归；未把未验证的清理参数设为生产默认。
+
+---
+
 ## 1. 当前项目状态
 
 当前主流程已经完成：
@@ -34,7 +65,7 @@
 当前自动测试：
 
 ```text
-149 passed, 1 warning
+178 passed, 1 warning (2026-10-24, Linux Python verification)
 ```
 
 唯一 warning 来自主 Windows 环境没有安装可选 PyTorch/LPIPS；APDrawingGAN 的 PyTorch/CUDA 环境独立放在 WSL 中，因此该 warning 不影响主 Pipeline。
@@ -96,7 +127,11 @@ RobotPortraitArt/
 │  ├─ CelebA/                   # 本地数据集，不提交
 │  └─ apdrawing_preprocessed/   # 可选手动 APDrawingGAN 输入
 ├─ outputs/                     # 运行结果，不提交
+├─ frontend/                   # Vue 3 前端（Vite）
+├─ docs/FINAL_HANDOFF_20261024.md # 课程答辩交接
 ├─ scripts/
+│  ├─ start_web.ps1            # FastAPI + WSL/CUDA 探测
+│  ├─ compare_vector_presets.py # 固定输入的矢量化对比
 │  ├─ run_pipeline.py
 │  ├─ check_apdrawinggan.py
 │  ├─ benchmark_vectorization.py
@@ -113,6 +148,7 @@ RobotPortraitArt/
 │  ├─ centerline.py
 │  ├─ vectorize.py
 │  ├─ metrics.py
+│  ├─ web/                     # FastAPI/JobStore/Worker
 │  └─ generators/
 ├─ tests/
 ├─ third_party/
@@ -122,6 +158,7 @@ RobotPortraitArt/
 ├─ EXPERIMENTS.md
 ├─ REPORT_DATA_TEMPLATE.csv
 ├─ requirements.txt
+├─ requirements-web.txt
 └─ requirements-optional.txt
 ```
 
@@ -536,7 +573,7 @@ python -m pytest -q
 当前：
 
 ```text
-149 passed, 1 warning
+178 passed, 1 warning (2026-10-24, Linux Python verification)
 ```
 
 中心线 / 路径规划专项测试覆盖：
@@ -597,30 +634,12 @@ actual trails    = 431
 
 ---
 
-## 14. 下一阶段
+## 14. 交付状态与后续工作
 
-当前核心算法已经稳定，下一阶段优先提升系统完整度：
+**本次课程系统已具备 FastAPI、Vue 3 前端、GAN 模型接入、结果 A/B 对比和真实 SVG Path 动画。**
+本次冻结候选版默认不改变已验证的 Centerline 参数与 APDrawingGAN 推理算法。
 
-1. README / EXPERIMENTS / 报告数据同步；
-2. FastAPI Backend；
-3. Vue 3 + TypeScript Web Demo；
-4. Robot Drawing Animation；
-5. 10～30 张多样本 benchmark；
-6. 最终报告与 PPT；
-7. 有硬件条件时再增加机器人/G-code exporter。
-
-Web 端建议支持：
-
-```text
-上传人脸
-→ 选择 baseline / APDrawingGAN
-→ 选择 contour / centerline
-→ Generate
-→ Original / Prepared / GAN / Vector 对比
-→ Stroke / Pen-up / Timing 指标
-→ 绘制动画
-→ 下载 SVG / PNG / Manifest
-```
+后续可研究的内容不等于当前已经交付：多样本图像视觉质量优化、实体机械臂坐标/速度约束校准、运动控制与硬件闭环实测。当前系统输出的是二维像素坐标下的可排序 SVG 绘制轨迹，而不是可直接下发实体机械臂的 G-code 或关节空间轨迹。
 
 ---
 
@@ -639,6 +658,7 @@ REPORT_DATA_TEMPLATE.csv
 ```
 
 个人贡献与后续规划可继续从实验结果中整理，不应填写未经实际运行得到的数据。
+
 ## Documentation / 文档
 
 - [Final Project Report / 最终项目报告](docs/FINAL_REPORT.md)

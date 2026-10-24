@@ -3,7 +3,8 @@ param(
     [int]$Port = 8000,
     [string]$Distro = "Ubuntu-22.04",
     [string]$APDPython = "/home/winter/.venvs/robotportrait-apd/bin/python",
-    [switch]$Reload
+    [switch]$Reload,
+    [switch]$RequireAPDrawingGAN
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,8 +16,7 @@ if (-not (Test-Path $venvPython)) {
     throw "Windows project virtualenv Python not found: $venvPython"
 }
 
-$wslExe = (Get-Command wsl.exe -ErrorAction Stop).Source
-
+$env:ROBOT_PORTRAIT_APD_DISTRO = $Distro
 $env:ROBOT_PORTRAIT_APD_PYTHON = $APDPython
 $env:PYTHONUTF8 = "1"
 
@@ -45,20 +45,59 @@ print("gpu:", torch.cuda.get_device_name(0))
 
 Write-Host "[RobotPortraitArt] Checking APDrawingGAN WSL/CUDA environment..."
 
-# Feed Python code through stdin instead of `python -c` so PowerShell/wsl.exe
-# quoting cannot strip the quotes inside the Python program.
-$preflightCode | & $wslExe `
-    -d $Distro `
-    -- `
-    $APDPython `
-    -
+$preflightPassed = $false
+$preflightFailure = $null
 
-if ($LASTEXITCODE -ne 0) {
-    throw "APDrawingGAN WSL/CUDA preflight failed."
+try {
+    $wslExe = (Get-Command wsl.exe -ErrorAction Stop).Source
+
+    # Feed Python code through stdin instead of `python -c` so PowerShell/wsl.exe
+    # quoting cannot strip the quotes inside the Python program.
+    $preflightCode | & $wslExe `
+        -d $Distro `
+        -- `
+        $APDPython `
+        -
+
+    if ($LASTEXITCODE -eq 0) {
+        $preflightPassed = $true
+    }
+    else {
+        $preflightFailure = (
+            "APDrawingGAN WSL/CUDA preflight exited with code " +
+            "$LASTEXITCODE."
+        )
+    }
+}
+catch {
+    $preflightFailure = $_.Exception.Message
 }
 
-Write-Host ""
-Write-Host "[RobotPortraitArt] APDrawingGAN WSL/CUDA preflight passed."
+if ($preflightPassed) {
+    Write-Host ""
+    Write-Host "[RobotPortraitArt] APDrawingGAN WSL/CUDA preflight passed."
+}
+else {
+    if ([string]::IsNullOrWhiteSpace($preflightFailure)) {
+        $preflightFailure = "unknown error"
+    }
+
+    $message = (
+        "APDrawingGAN WSL/CUDA preflight failed: " +
+        $preflightFailure
+    )
+
+    if ($RequireAPDrawingGAN) {
+        throw $message
+    }
+
+    Write-Warning $message
+    Write-Warning (
+        "FastAPI will continue in degraded mode. " +
+        "Baseline remains available; /api/methods reports APDrawingGAN status."
+    )
+}
+
 Write-Host "[RobotPortraitArt] Starting FastAPI..."
 Write-Host ""
 
