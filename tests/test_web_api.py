@@ -931,3 +931,38 @@ def test_real_web_app_lifespan_marks_previous_queued_job_failed(tmp_path):
     assert response.status_code == 200
     assert response.json()["status"] == "failed"
     assert "重启" in response.json()["error"]["message"]
+
+
+def test_default_preflight_reuses_status_for_methods_and_job_submission(tmp_path, monkeypatch):
+    """Expensive WSL preflight is reused, unless explicitly refreshed."""
+    from importlib import import_module
+    web_app = import_module("robot_portrait.web.app")
+
+    calls = []
+
+    def statuses():
+        calls.append(time.monotonic())
+        return {
+            "apdrawinggan": {
+                "available": True,
+                "reason": None,
+                "details": {"auto_preprocess": {"available": True}},
+            },
+            "baseline": {"available": True, "reason": None, "details": {}},
+        }
+
+    monkeypatch.setattr(web_app, "default_generator_statuses", statuses)
+    app, worker = _test_app(tmp_path)
+    with TestClient(app) as client:
+        assert client.get("/api/methods").status_code == 200
+        assert client.get("/api/methods").status_code == 200
+        created = client.post(
+            "/api/jobs",
+            files={"image": ("example.png", _png_bytes(), "image/png")},
+            data={"method": "apdrawinggan", "vector_mode": "centerline", "size": "512"},
+        )
+        assert created.status_code == 201
+        assert len(worker.submitted) == 1
+        assert len(calls) == 1  # No second costly WSL/CUDA probe.
+        assert client.get("/api/methods?refresh=true").status_code == 200
+        assert len(calls) == 2

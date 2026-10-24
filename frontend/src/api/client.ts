@@ -103,8 +103,8 @@ export function getHealth(): Promise<HealthResponse> {
   return getJson<HealthResponse>('/api/health')
 }
 
-export function getMethods(): Promise<MethodsResponse> {
-  return getJson<MethodsResponse>('/api/methods')
+export function getMethods(refresh = false): Promise<MethodsResponse> {
+  return getJson<MethodsResponse>(refresh ? '/api/methods?refresh=true' : '/api/methods')
 }
 
 export function getJob(

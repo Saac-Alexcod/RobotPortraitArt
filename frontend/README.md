@@ -1,112 +1,56 @@
-# RobotPortraitArt · Final Course Demo (2026-10-24)
+# RobotPortraitArt frontend
 
-Vue 3 + TypeScript + Vite frontend for the RobotPortraitArt FastAPI service.
+Vue 3 + TypeScript + Vite interface for the RobotPortraitArt FastAPI service.
 
-## Requirements
+## Run locally
 
-- Node.js `^20.19.0` or `>=22.12.0`
-- npm 10+
-- RobotPortraitArt Python environment with the Web API dependencies installed
+Backend first, from the repository root:
 
-## Install
+```powershell
+.\scripts\start_web.ps1
+```
+
+Frontend in a separate terminal:
 
 ```powershell
 cd frontend
 npm ci
+npm run dev
 ```
 
-## Validate
+Open `http://127.0.0.1:5173`. Vite proxies `/api` to `http://127.0.0.1:8000`.
+
+The upload panel now includes a **four-image sample gallery**. Clicking a sample selects a real JPEG `File` for the existing upload flow; manual file selection and drag-and-drop still work. Sample files are mirrored in `frontend/public/examples/` for Vite static serving and originate from [`../data/examples/`](../data/examples/). Baseline can run without APDrawingGAN model weights. Advanced GAN mode is only enabled when reported available by the backend.
+
+## Production checks
 
 ```powershell
 npm run typecheck
 npm run build
 ```
 
-## Develop
+## UI capabilities
 
-Start the FastAPI backend from the repository root:
+- Upload via file selection, drag-and-drop, or one-click selection of four bundled synthetic portraits, with local image preview.
+- Select APDrawingGAN/Baseline and Centerline/Contour according to API availability.
+- Submit generation jobs and track queued/running/completed/failed states.
+- Inspect generated Portrait / Robot Vector, preprocessed and aligned inputs.
+- Compare processing stages with an interactive A/B slider.
+- Play the true server-generated SVG path order with pen-down and pen-up visualization.
+- Inspect Manifest metrics and download PNG, SVG and JSON results.
 
-```powershell
-python -m uvicorn `
-  robot_portrait.web.app:app `
-  --app-dir src `
-  --host 127.0.0.1 `
-  --port 8000
-```
+The browser does not reimplement the GAN, vectorization, or path-planning algorithms. Robot drawing is a visualization of the generated SVG trajectory, **not a physical robot hardware controller**.
 
-If APDrawingGAN is configured through the WSL backend, set the project-specific
-environment variables required by the backend before starting Uvicorn.
+See the [project README](../README.md) for backend setup, model requirements, API details and limitations.
 
-Then start Vite in another terminal:
+### Sample gallery and full-frame image preview
 
-```powershell
-cd frontend
-npm run dev
-```
+- The four synthetic portrait examples are bundled under `frontend/public/examples/`, byte-for-byte identical to the originals in `data/examples/`.
+- Clicking a sample selects the same JPEG `File` object used by the manual upload path. The upload-stage preview uses `object-fit: contain` and displays the entire original image rather than clipping a square portrait to the wide card. Use **View full image** (shown as “查看整图” in the UI) to open a larger preview; press `Esc` or the close button to dismiss it.
+- The preview does not modify, resize, or crop the image submitted to FastAPI. The profile example is a challenge input; successful APDrawingGAN preprocessing and GPU generation are not guaranteed for every example.
+- When replacing the examples, keep the copies in the CLI and Vite public directories in sync. The corresponding consistency tests detect stale or missing assets.
 
-Open:
+### Local history and submission latency
 
-```text
-http://127.0.0.1:5173
-```
-
-Vite proxies `/api/*` to `http://127.0.0.1:8000`.
-
-## Implemented Web Demo scope
-
-- live FastAPI health and generator availability
-- image selection, drag-and-drop, validation, and local preview
-- Baseline / APDrawingGAN generator selection based on backend availability
-- Contour / Centerline vector mode selection
-- real `POST /api/jobs` job creation
-- automatic queued / running / completed / failed polling
-- Original / Prepared / Portrait / Robot Vector result gallery
-- Manifest-backed stroke, pen-down, pen-up, vectorization, and total-time metrics
-- PNG / SVG / Manifest downloads
-- interactive A/B result comparison
-- real SVG path robot drawing animation with Pen-down / Pen-up visualization
-
-The frontend intentionally reuses the existing FastAPI API and does not
-reimplement portrait generation or vectorization logic in the browser.
-
-
-## Presentation conventions
-
-- Default selected generator: APDrawingGAN when reported available; otherwise fall back to Baseline.
-- Pipeline cards describe the real processing stages, not release history.
-- 2-opt ratio comes from server Manifest as a fraction; the UI displays it as a percentage.
-- The Robot Drawing panel plays the *software-generated* SVG path order; it does not command real robot hardware.
-- On errors, check `/api/health`, `/api/methods`, and the browser Network tab. No account/database is required.
-
-## Defense UI Results update (UI RC2)
-
-- Two large, clickable previews highlight GAN Portrait and the real Robot Vector output; press Escape or the close button to exit the preview.
-- Original, Prepared, and optional Aligned Input stay visible in a compact processing history.
-- Manifest-based metrics include a Greedy vs 2-opt distance comparison when both source numbers are present. These are image-pixel distances, not measured robot motion.
-- A/B comparison offers quick presets for aligned-input/portrait and portrait/vector, while retaining manual selection.
-- No change was made to FastAPI, the GAN, vectorization parameters, or the SVG output.
-
-## Studio layout (UI RC3)
-
-The front end presents a focused studio rather than a long sequence of independent cards:
-
-- A compact introduction and clear **creation workspace** for selecting an image and configuring a real job.
-- On completion the page scrolls to the **result workspace**, with tabs for **Artwork**, **Drawing**, **Comparison**, and **Technical data**.
-- Artwork loads the real portrait and vector preview returned by the job; input-stage photos are available on demand.
-- The Drawing tab lazily mounts the existing true SVG Path player. Playing, pausing, restarting, and changing speed do not modify the exported SVG or job data.
-- Comparison uses the existing interactive image slider; Analysis reads the real Manifest and visualizes Greedy versus 2-opt pen-up travel.
-- System diagnostics are available from a collapsed disclosure area instead of occupying the main presentation flow.
-
-The header has no special “final demo” badge. Algorithm, API, metrics, and exported artifacts are unchanged from core frozen v1.0. The previous RC2 UI is available as the rollback baseline.
-
-### RC4：完整画幅预览
-
-作品视图默认以等比例、无遮挡方式显示 GAN 肖像和机器人 SVG 栅格预览。可切换「观察细节」（仅前端浏览器裁切），或点击进入完整大图；两种模式均不改变后端文件、矢量路径、指标或绘制顺序。
-
-## RC5 前端精修（保留 RC4 结构）
-
-- 首页流程卡片高度与文案优化，提升投影可读性；移除装饰性的课程演示标识。
-- 完成任务后使用明确的「查看本次作品」按钮引导至结果，不改变任务轮询和后端 API。
-- 结果大图支持上一阶段/下一阶段按钮及左右方向键切换，Esc 关闭；对话框内焦点可循环。
-- 绘制视图提高未开始状态的参考轨迹对比度，播放时仍严格使用后端 SVG 顺序；播放控制与倍速按钮增加无障碍标签。
-- 新增轻量状态反馈、键盘焦点样式、小屏和减少动态效果适配；不修改 PNG、SVG、Manifest 或任何算法参数。
+- The workspace keeps up to **six recent input images** in this browser's IndexedDB, together with the latest related job ID. Select an entry under **最近使用** to restore the image and (if the backend still has it under `outputs/web_jobs/`) reload its job/results. This does **not** upload photos to an additional service or save results in the browser. Delete entries individually or clear the local list. On private browsing or blocked browser storage, history may survive only until the page is closed. Existing jobs created before enabling this feature are not backfilled automatically.
+- After submitting a task, the UI reports **server acceptance latency** separately from real inference/vectorization time. The backend caches default WSL/CUDA preflight status for up to 30 seconds (5 seconds on an unavailable result) so `GET /api/methods` and `POST /api/jobs` avoid repeat probes. "重新检查" forces an immediate refresh. The worker still validates availability when actually running the pipeline. A job already queued behind another job may still wait; this change does not change the single-GPU worker queue or speed up inference itself.
