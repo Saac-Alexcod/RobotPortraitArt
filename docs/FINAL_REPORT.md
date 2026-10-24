@@ -1,11 +1,12 @@
 # 机器人肖像绘制艺术风格学习（L1）
-## RobotPortraitArt 技术实现与实验分析报告
 
-> 报告版本：Final
-> 实验分支：`feat/evaluation-benchmark`
-> 代码锚点：`0f0426a`
-> 实验数据状态：已锁定
-> 日期：2026-10-19
+**RobotPortraitArt 技术实现与实验分析报告**
+
+> **文档类型：** 课程技术报告与历史实验分析（2026-10-24 文档校订版）
+> **历史核心实验：** 2026-10-19；实验提交 `0f0426a`（`feat/evaluation-benchmark`）
+> **公开软件版本参照：** `v1.0.1`（`10a6b78b753b75796a2dc6343b4a71e7aa17bb0a`）
+> **证据范围：** 实验数值沿用原报告已记录的汇总结果；本次文档校订**未重新运行** 40 次 Benchmark，也未从原始 CSV 重新计算统计量。
+> **重要区分：** 公开仓库的 4 张 AI 合成示例用于产品演示，**不是**本报告历史 20 张 Core Benchmark 的替代样本；完整 Benchmark 原始输入及 `outputs/` 结果不包含在公开源码包中。
 
 ---
 
@@ -20,6 +21,16 @@
 综合实验表明，本项目不仅完成了照片到艺术肖像的生成，还将生成结果进一步转化为具有明确机器人运动代价的矢量轨迹，并通过最少笔画覆盖和路径顺序优化实现了可量化的绘制效率改进。系统当前最明显的鲁棒性瓶颈是大姿态人脸的自动关键点检测，而非 GAN 推理、分割或矢量化本身。
 
 **关键词：** 机器人绘画；肖像生成；APDrawingGAN；生成对抗网络；人脸对齐；中心线矢量化；图论；路径规划；2-opt；结构保真度
+
+
+### 阅读与复现说明
+
+- **报告中的“20 张 / 40 次 / 18 对”**均指 2026-10-19 的历史 Core Benchmark，而非 README 里的 4 张合成演示图片。`local` 类别涉及非公开输入；不得因仓库缺少原始照片而声称任何人均可直接复现同一数值。
+- 报告所列均值、成功率与 Edge-F1 是**历史实验记录值**。下文插图依据已发表在本报告中的表格重新绘制，属于“汇总数据可视化”，不构成新的实验、独立验证或统计显著性证据。
+- 旧实验提交下的 `173 passed` 属于当时的回归快照；后续 `v1.0.1` 的界面、历史记录与预检缓存是在此后完成的功能。两者不要混写。
+- 指标以像素、时间和路径几何为单位；本项目**没有实体机械臂执行结果**，因此不声称实际关节可达性、物理绘图误差或绝对作业时长的改善。
+
+文档索引与证据分级见 [文档版本与数据说明](DOCUMENTATION_STATUS.md)。
 
 ---
 
@@ -83,19 +94,19 @@ SVG / 机器人绘制轨迹
 
 ### 2.1 APDrawingGAN
 
-APDrawingGAN 由 Yi 等人在 CVPR 2019 提出，面向“人脸照片 → 艺术肖像线稿”的生成任务。该方法的关键思想是使用全局与局部层次化生成器/判别器，使不同面部区域可以采用不同的绘制策略，并通过距离变换相关的损失处理艺术家线条与照片边缘并不严格对齐的问题。
+APDrawingGAN 由 Yi 等人在 CVPR 2019 提出 [1]，面向“人脸照片 → 艺术肖像线稿”的生成任务。该方法的关键思想是使用全局与局部层次化生成器/判别器，使不同面部区域可以采用不同的绘制策略，并通过距离变换相关的损失处理艺术家线条与照片边缘并不严格对齐的问题。
 
 这项工作与本项目高度契合，原因在于其目标输出本身就是稀疏、线性的艺术肖像，而不是传统意义上的彩色风格迁移图像。因此，本项目选取 APDrawingGAN 作为主要学习式生成器，并重点解决其自动预处理、Windows/WSL 推理集成、矢量化和机器人轨迹规划问题。
 
 ### 2.2 GANs N' Roses
 
-GANs N' Roses 研究稳定、可控、多样的 image-to-image translation，并将内容编码与风格编码分离，以产生多样的动漫风格输出。其价值主要体现在“内容一致性与风格多样性”的建模思想。
+GANs N' Roses [2] 研究稳定、可控、多样的 image-to-image translation，并将内容编码与风格编码分离，以产生多样的动漫风格输出。其价值主要体现在“内容一致性与风格多样性”的建模思想。
 
 本项目没有直接实现该方法，但它为未来“同一张人像生成多种机器人绘画风格”提供了参考方向。
 
 ### 2.3 U-GAT-IT
 
-U-GAT-IT 是一种无监督图像到图像转换方法，引入注意力机制和 AdaLIN（Adaptive Layer-Instance Normalization），以控制几何和纹理变化。其思路表明，生成模型可以通过注意力自动关注源域与目标域差异显著的区域。
+U-GAT-IT [3] 是一种无监督图像到图像转换方法，引入注意力机制和 AdaLIN（Adaptive Layer-Instance Normalization），以控制几何和纹理变化。其思路表明，生成模型可以通过注意力自动关注源域与目标域差异显著的区域。
 
 在本项目中，U-GAT-IT 主要作为后续可扩展艺术风格生成器的参考，而不是正式实现模块。
 
@@ -104,6 +115,31 @@ U-GAT-IT 是一种无监督图像到图像转换方法，引入注意力机制�
 ## 3. 系统总体设计
 
 ### 3.1 系统架构
+
+**图 1：系统数据流（与实际代码模块对应，概念示意）**
+
+```mermaid
+flowchart LR
+    A[Portrait input] --> B[Preprocessing]
+    B --> C{Generator}
+    C --> D[OpenCV Baseline]
+    C --> E[YuNet / Alignment / PPHumanSeg]
+    E --> F[APDrawingGAN on WSL / CUDA]
+    D --> G[Raster line art]
+    F --> G
+    G --> H{Vectorization}
+    H --> I[Contour]
+    H --> J[Centerline graph]
+    J --> K[Minimum-lift trails]
+    K --> L[Greedy + 2-opt]
+    I --> M[SVG + Manifest]
+    L --> M
+    M --> N[FastAPI job API]
+    N --> O[Vue 3 preview / drawing simulation]
+```
+
+> 图 1 仅表示软件中执行的逻辑链路。Baseline 和 APDrawingGAN 的预处理条件不同；最后的动画是二维 SVG 预览，不代表实际机械臂运动。
+
 
 ```mermaid
 flowchart TD
@@ -168,9 +204,21 @@ flowchart TD
 
 ---
 
+### 3.4 开放示例与历史实验样本的区别
+
+**图 2：公开合成样例的实际 Baseline → Centerline 演示（非 Core Benchmark 样本）**
+
+| 示例输入 | OpenCV Baseline 输出 | SVG 路径回栅格预览 |
+|:--:|:--:|:--:|
+| <img src="../data/examples/portrait_sample.jpg" width="180" alt="Demo input" /> | <img src="assets/sample_baseline_portrait.png" width="180" alt="Baseline portrait" /> | <img src="assets/sample_baseline_vector.png" width="180" alt="Centerline vector render" /> |
+
+> 图 2 来自仓库公开合成示例的实际处理结果，只展示软件输入输出形式；它**不是**后文固定 Raster E3–E5 输入，也不是 APDrawingGAN 或历史 20 张 Core Benchmark 的统计样本。
+
+---
+
 ## 4. 核心算法设计
 
-## 4.1 Baseline 生成器
+### 4.1 Baseline 生成器
 
 Baseline 使用传统、确定性的图像处理流程产生黑白人像线稿，其主要作用有两个：
 
@@ -181,7 +229,7 @@ Baseline 的优势是速度快、失败率低、输出与输入图像局部边�
 
 ---
 
-## 4.2 APDrawingGAN 自动预处理
+### 4.2 APDrawingGAN 自动预处理
 
 APDrawingGAN 原始工作流对人脸预处理有较强依赖。本项目将其自动化为：
 
@@ -199,7 +247,7 @@ PPHumanSeg Mask
 APDrawingGAN Inference
 ```
 
-### 4.2.1 YuNet 五点检测
+#### 4.2.1 YuNet 五点检测
 
 检测五个关键点：
 
@@ -211,7 +259,7 @@ APDrawingGAN Inference
 
 这些点用于后续相似变换。正式生成链使用较严格的 YuNet 置信度设置，因此对大姿态旋转样本较敏感，这一点在正式实验中形成了两个可复现的失败案例。
 
-### 4.2.2 相似变换对齐
+#### 4.2.2 相似变换对齐
 
 通过人脸五点估计相似变换，将输入照片映射到 APDrawingGAN 所需的标准 512×512 空间。对齐阶段记录：
 
@@ -221,13 +269,13 @@ APDrawingGAN Inference
 
 这些信息写入 manifest，可用于回溯预处理质量。
 
-### 4.2.3 PPHumanSeg 人像掩码
+#### 4.2.3 PPHumanSeg 人像掩码
 
 自动生成前景人像掩码，替代纯手工 mask 输入。系统同时记录前景比例等元数据，以便排查分割异常。
 
 ---
 
-## 4.3 中心线矢量化
+### 4.3 中心线矢量化
 
 生成模型输出的本质仍是栅格图像，而机器人需要连续路径。因此，本项目不是简单提取外轮廓，而是将黑色笔画转化为中心线图结构。
 
@@ -240,7 +288,7 @@ APDrawingGAN Inference
 
 ---
 
-## 4.4 图结构精炼与 Junction Cluster Contraction
+### 4.4 图结构精炼与 Junction Cluster Contraction
 
 骨架化后的像素图容易在交叉点附近产生多个相邻高阶节点，直接进行路径分解会人为制造大量短笔画。
 
@@ -254,9 +302,9 @@ APDrawingGAN Inference
 
 ---
 
-## 4.5 Minimum-Lift Trail Cover
+### 4.5 Minimum-Lift Trail Cover
 
-### 4.5.1 问题定义
+#### 4.5.1 问题定义
 
 机器人完成一条 stroke 后若要移动到下一条 stroke，需要抬笔。抬笔次数和抬笔距离都会降低绘制效率。
 
@@ -274,7 +322,7 @@ o/2, & o > 0
 
 整张图的理论最少 trail 数为各连通分量结果之和。
 
-### 4.5.2 项目实现目标
+#### 4.5.2 项目实现目标
 
 项目记录：
 
@@ -297,11 +345,11 @@ edge_reuse_count == 0
 
 ---
 
-## 4.6 跨笔画排序与 2-opt
+### 4.6 跨笔画排序与 2-opt
 
 完成最少 trail 分解后，仍需决定这些 trail 的执行顺序和方向。
 
-### 4.6.1 Pen-down 与 Pen-up
+#### 4.6.1 Pen-down 与 Pen-up
 
 定义：
 
@@ -323,7 +371,7 @@ D_{\text{up}}
 
 路径排序优化的主要目标是降低 \(D_{\text{up}}\)，而不改变实际绘制内容。
 
-### 4.6.2 2-opt
+#### 4.6.2 2-opt
 
 系统首先建立确定性 greedy 顺序，再使用 2-opt 对 stroke 顺序进行局部搜索。
 
@@ -356,6 +404,10 @@ D_{\text{up}}
 | Minimum-Lift | 431 | **431** | 5665.22 | 15602.68 | **0** |
 | Minimum-Lift + 2-opt | **431** | **431** | **5001.77** | 15602.68 | **0** |
 
+![Figure 3: Pen-up lengths on one fixed raster](assets/report_fixed_raster_penup.png)
+
+**图 3：** 根据本节同一固定栅格的表格重绘 pen-up 长度（px），不可解释为跨样本统计。
+
 关键观察：
 
 - Minimum-Lift 将笔画数从 713 降至 431；
@@ -374,7 +426,7 @@ D_{\text{up}}
 
 ## 6. Benchmark 数据集设计
 
-## 6.1 数据集版本
+### 6.1 数据集版本
 
 正式实验使用：
 
@@ -388,7 +440,7 @@ outputs/benchmark_faces_v1_3
 
 数据集锁定后，不再根据实验结果重新采样、修改随机种子或替换困难样本。
 
-## 6.2 Core 与 Stress/OOD
+### 6.2 Core 与 Stress/OOD
 
 ### Core：20 张
 
@@ -438,7 +490,7 @@ python scripts/benchmark_end_to_end.py `
   --config "configs/centerline.yaml" `
   --size 512 `
   --seed 42 `
-  --apd-python "/home/winter/.venvs/robotportrait-apd/bin/python" `
+  --apd-python "/home/YOUR_USER/.venvs/robotportrait-apd/bin/python" `
   --apd-timeout 180
 ```
 
@@ -460,7 +512,7 @@ APDrawingGAN 推理环境记录如下：
 APDrawingGAN 使用独立 WSL Python：
 
 ```text
-/home/winter/.venvs/robotportrait-apd/bin/python
+/home/YOUR_USER/.venvs/robotportrait-apd/bin/python
 ```
 
 这一设计避免 Windows 主环境与旧版 APDrawingGAN/PyTorch 依赖之间的冲突。
@@ -469,7 +521,7 @@ APDrawingGAN 使用独立 WSL Python：
 
 ## 8. 评价指标
 
-## 8.1 端到端成功率
+### 8.1 端到端成功率
 
 定义：
 
@@ -481,7 +533,7 @@ SuccessRate = \frac{N_{\text{completed}}}{N_{\text{attempted}}}
 
 ---
 
-## 8.2 机器人绘制复杂度
+### 8.2 机器人绘制复杂度
 
 主要指标：
 
@@ -503,7 +555,7 @@ SuccessRate = \frac{N_{\text{completed}}}{N_{\text{attempted}}}
 
 ---
 
-## 8.3 路径优化效果
+### 8.3 路径优化效果
 
 使用：
 
@@ -517,7 +569,7 @@ ImprovementRatio =
 
 ---
 
-## 8.4 运行时间
+### 8.4 运行时间
 
 记录：
 
@@ -532,7 +584,7 @@ ImprovementRatio =
 
 ---
 
-## 8.5 为什么不直接把 SSIM / LPIPS 当作艺术质量
+### 8.5 为什么不直接把 SSIM / LPIPS 当作艺术质量
 
 照片与艺术线稿属于不同视觉域。一个成功的艺术化模型可能主动：
 
@@ -550,7 +602,7 @@ ImprovementRatio =
 
 ---
 
-## 8.6 自动区域结构保真度
+### 8.6 自动区域结构保真度
 
 为了替代 36 张结果 × 6 区域的大规模人工评分，本项目新增：
 
@@ -607,13 +659,17 @@ Failures       = 0
 
 ## 9. 正式端到端实验结果
 
-## 9.1 成功率
+### 9.1 成功率
 
 | Method | Attempted | Completed | Failed | Success Rate |
 |---|---:|---:|---:|---:|
 | Baseline | 20 | 20 | 0 | **100%** |
 | APDrawingGAN | 20 | 18 | 2 | **90%** |
 | Overall | 40 | 38 | 2 | **95%** |
+
+![Figure 4: Success rates for 20 inputs per method](assets/report_success_rate.png)
+
+**图 4：** 根据正式 20 张 Core Benchmark 的汇总成功次数绘制；分母均为 20。失败保留在统计中。
 
 两个 APDrawingGAN 失败样本均位于 `rotated` 类别：
 
@@ -637,7 +693,7 @@ YuNet 未检测到人脸
 
 ---
 
-## 9.2 分类别结果
+### 9.2 分类别结果
 
 > 下表的均值均基于各方法在对应类别中**成功完成的样本**。因此 `rotated` 类别中 Baseline 的均值来自 3 张，而 APDrawingGAN 的均值仅来自 1 张，不应把两者直接解释为严格配对均值。
 
@@ -651,23 +707,23 @@ YuNet 未检测到人脸
 | reserve_standard | 1/1 | 1/1 | 387.00 | 623.00 | 6130.02 | 7035.09 | 1610.46 | 11215.44 |
 | local | 4/4 | 4/4 | 229.75 | 456.25 | 4314.72 | 5916.25 | 881.35 | 9909.76 |
 
-### 9.2.1 Easy
+#### 9.2.1 Easy
 
 APDrawingGAN 的笔画数比 Baseline 更多，但平均 pen-up 反而更低。这说明“线稿更复杂”并不必然导致“空移更多”；stroke 的空间布局和跨 stroke 排序同样重要。
 
-### 9.2.2 Small Face
+#### 9.2.2 Small Face
 
 两种方法均 3/3 成功，说明在成功完成 YuNet/对齐后，小脸并不是 APDrawingGAN 端到端链路的必然失败因素。
 
-### 9.2.3 Dark
+#### 9.2.3 Dark
 
 APDrawingGAN 在这 3 个暗光样本上仍全部完成，同时输出笔画复杂度高于 Baseline。由于该类别仅包含 3 个样本，这一结果只能说明暗光在本组样本中没有直接造成端到端失败，不能据此作一般性的因果推断。
 
-### 9.2.4 Soft
+#### 9.2.4 Soft
 
 APDrawingGAN 同样为 3/3 成功，但该类别的平均总耗时最高，约 13.34 s。该现象提示低清晰度样本可能伴随更高的生成或后处理开销，但受样本量限制，不将其解释为普遍因果关系。
 
-### 9.2.5 Rotated
+#### 9.2.5 Rotated
 
 这是最明显的系统鲁棒性弱点：
 
@@ -678,7 +734,7 @@ APDrawingGAN: 1 / 3 = 33.3%
 
 两例失败均发生于 APDrawingGAN 前置 YuNet 检测，因此当前系统需要优先改善的不是 GAN 本体，而是大姿态条件下的人脸定位与 fallback 策略。
 
-### 9.2.6 Local
+#### 9.2.6 Local
 
 4 张额外本地真实照片在两种方法上均全部完成。该结果为系统处理非 CelebA 实际照片提供了初步支持，但样本量仅为 4，不足以代表更广泛真实场景的泛化能力。
 
@@ -713,7 +769,14 @@ APDrawingGAN status == completed
 | Total Time / ms | 1290.91 | 10715.44 | **8.30×** |
 | SVG Bytes | 45889.94 | 88881.28 | **+93.7%** |
 
+![Figure 5: Paired path length comparison](assets/report_paired_path_lengths.png)
+
+**图 5：** 18 个共同成功样本的路径长度均值，来源为上表的聚合数据；未提供误差棒，不代表已计算置信区间或统计显著性。
+
 ### 10.2 结果解释
+
+**统计限制：** 本报告列出的是配对样本的指标均值与均值的相对变化，尚未提供各样本的差值分布、标准差、95% 置信区间或成对显著性检验。因而不能仅凭下表宣称不同方法存在统计学显著差异。表中计算口径以原汇总文件为准，若将来提供原始逐样本 CSV，应重新核对聚合方式（特别是“平均百分比”与“均值之比”可能不同）。
+
 
 APDrawingGAN 的平均笔画数增加约 76%，pen-down 增加约 167%，说明其输出包含明显更多的可绘制线条。
 
@@ -745,7 +808,7 @@ APDrawingGAN：
 mean 2-opt improvement = 11.38%
 ```
 
-两者都稳定处于约 11%–13% 的改善范围。
+两种方法的**样本平均**改善率约为 11%–13%；仅凭这两个均值无法判断每个样本的改善幅度是否稳定。
 
 因此可以得到一个重要工程结论：
 
@@ -759,7 +822,7 @@ mean 2-opt improvement = 11.38%
 
 ## 12. 自动结构保真度结果
 
-## 12.1 最终 V2 结果
+### 12.1 最终 V2 结果
 
 | Region | Baseline Edge-F1 | APDrawingGAN Edge-F1 | APD − Baseline | Relative Change |
 |---|---:|---:|---:|---:|
@@ -770,6 +833,10 @@ mean 2-opt improvement = 11.38%
 | Contour | **0.5402** | 0.3960 | **-0.1443** | **-26.7%** |
 | Hair | **0.4753** | 0.3822 | **-0.0931** | **-19.6%** |
 | **Regional Mean** | **0.5318** | 0.4738 | **-0.0580** | **-10.9%** |
+
+![Figure 6: Regional structure-retention comparison](assets/report_regional_edge_f1.png)
+
+**图 6：** 根据区域 Edge-F1 汇总值绘制。F1 表示相对输入结构边缘的匹配，不是审美评价；横向比较不能用于判定“谁的艺术风格更优”。
 
 ### 12.2 如何正确解释该表
 
@@ -791,7 +858,7 @@ mean 2-opt improvement = 11.38%
 
 ---
 
-## 12.3 逐样本 Regional Mean F1
+### 12.3 逐样本 Regional Mean F1
 
 | Sample | Category | Baseline | APDrawingGAN | Better Structural F1 |
 |---|---|---:|---:|---|
@@ -881,7 +948,7 @@ B. Robot Execution Side
 
 ## 14. 失败分析
 
-## 14.1 正式 Benchmark 的两个失败
+### 14.1 正式 Benchmark 的两个失败
 
 失败：
 
@@ -908,11 +975,11 @@ robot_portrait.apdrawinggan_preprocess.FaceNotDetectedError
 YuNet detection
 ```
 
-### 14.1.1 已观察到的失败边界
+#### 14.1.1 已观察到的失败边界
 
 日志表明这两次运行均在 YuNet 检测阶段终止，因此**已观察到的直接失败点**不是 APDrawingGAN checkpoint、CUDA 推理、PPHumanSeg 或 Vectorization。需要注意：由于流程没有继续执行到这些后续模块，不能据此证明这些模块在这两张样本上一定不会失败；只能说明它们不是本次运行中首先触发的错误位置。
 
-### 14.1.2 主要瓶颈
+#### 14.1.2 主要瓶颈
 
 当前最可信的判断是：
 
@@ -924,7 +991,7 @@ YuNet detection
 
 ## 15. 工程实现与可复现性
 
-## 15.1 Benchmark Runner
+### 15.1 Benchmark Runner
 
 正式 Benchmark 由：
 
@@ -947,7 +1014,7 @@ scripts/benchmark_end_to_end.py
 - 中断后的 completed-run resume；
 - 每次运行独立 console log。
 
-### 15.1.1 输出结构
+#### 15.1.1 输出结构
 
 ```text
 outputs/evaluation_benchmark/
@@ -963,7 +1030,7 @@ outputs/evaluation_benchmark/
 
 ---
 
-## 15.2 Structural Fidelity Evaluator
+### 15.2 Structural Fidelity Evaluator
 
 最终结构评价：
 
@@ -990,7 +1057,7 @@ Paired N  = 18
 
 ---
 
-## 15.3 版本控制锚点
+### 15.3 版本控制锚点
 
 正式实验相关 Git 提交：
 
@@ -1010,7 +1077,7 @@ Merge pull request #9 ... feat/web-apdrawinggan
 
 因此实验数据可以与明确的代码版本关联，便于复现和答辩说明。
 
-### 15.4 最终回归检查
+### 15.4 历史实验提交的回归检查（不等于 v1.0.1 全量验证）
 
 在 `0f0426a` 提交后进行了最终代码级回归检查：
 
@@ -1024,7 +1091,7 @@ Merge pull request #9 ... feat/web-apdrawinggan
 | Git whitespace check | `git diff --check` 无错误 |
 | Working tree | 检查时保持 clean |
 
-上述回归检查用于确认最终文档与实验评价代码调整没有破坏已有主流程；它不替代真实机器人硬件测试。
+上述检查属于 `0f0426a` 当时的独立快照，只用于确认对应实验评价代码；它既不替代真实机器人硬件测试，也**不应冒充**后来 `v1.0.1` 的回归结果。公开版的本机验收应重新执行 README 中的 `python -m pytest -q`、`npm run typecheck` 与 `npm run build` 并记录执行日期。
 
 ---
 
@@ -1292,34 +1359,34 @@ Raster Line-art
 
 ---
 
-# 参考文献
+## 参考文献
 
-[1] Ran Yi, Yong-Jin Liu, Yu-Kun Lai, Paul L. Rosin. **APDrawingGAN: Generating Artistic Portrait Drawings From Face Photos With Hierarchical GANs.** Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2019. DOI: 10.1109/CVPR.2019.01100.
+[1] Yi R, Liu Y J, Lai Y K, Rosin P L. APDrawingGAN: Generating Artistic Portrait Drawings From Face Photos With Hierarchical GANs[C]//Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2019: 10743–10752. DOI: [10.1109/CVPR.2019.01100](https://doi.org/10.1109/CVPR.2019.01100). [CVF 论文全文](https://openaccess.thecvf.com/content_CVPR_2019/html/Yi_APDrawingGAN_Generating_Artistic_Portrait_Drawings_From_Face_Photos_With_Hierarchical_CVPR_2019_paper.html).
 
-[2] Min Jin Chong, David Forsyth. **GANs N' Roses: Stable, Controllable, Diverse Image to Image Translation (works for videos too!).** arXiv:2106.06561, 2021.
+[2] Chong M J, Forsyth D. GANs N' Roses: Stable, Controllable, Diverse Image to Image Translation (works for videos too!)[EB/OL]. arXiv:2106.06561, 2021. [原文](https://arxiv.org/abs/2106.06561).
 
-[3] Junho Kim, Minjae Kim, Hyeonwoo Kang, Kwanghee Lee. **U-GAT-IT: Unsupervised Generative Attentional Networks with Adaptive Layer-Instance Normalization for Image-to-Image Translation.** International Conference on Learning Representations (ICLR), 2020.
+[3] Kim J, Kim M, Kang H, Lee K. U-GAT-IT: Unsupervised Generative Attentional Networks with Adaptive Layer-Instance Normalization for Image-to-Image Translation[C]//International Conference on Learning Representations (ICLR). 2020. [原文](https://openreview.net/forum?id=BJlZ5ySKPH).
 
 ---
 
-# 附录 A：正式实验命令
+## 附录 A：正式实验命令
 
-## A.1 APDrawingGAN 环境
+### A.1 APDrawingGAN 环境
 
 ```powershell
 $env:ROBOT_PORTRAIT_APD_PYTHON = `
-  "/home/winter/.venvs/robotportrait-apd/bin/python"
+  "/home/YOUR_USER/.venvs/robotportrait-apd/bin/python"
 ```
 
-## A.2 Generator Preflight
+### A.2 Generator Preflight
 
 ```powershell
 python scripts/run_pipeline.py `
   --list-methods `
-  --apd-python "/home/winter/.venvs/robotportrait-apd/bin/python"
+  --apd-python "/home/YOUR_USER/.venvs/robotportrait-apd/bin/python"
 ```
 
-## A.3 正式 End-to-End Benchmark
+### A.3 正式 End-to-End Benchmark
 
 ```powershell
 python scripts/benchmark_end_to_end.py `
@@ -1330,11 +1397,11 @@ python scripts/benchmark_end_to_end.py `
   --config "configs/centerline.yaml" `
   --size 512 `
   --seed 42 `
-  --apd-python "/home/winter/.venvs/robotportrait-apd/bin/python" `
+  --apd-python "/home/YOUR_USER/.venvs/robotportrait-apd/bin/python" `
   --apd-timeout 180
 ```
 
-## A.4 Structural Fidelity V2
+### A.4 Structural Fidelity V2
 
 ```powershell
 python scripts/evaluate_structural_fidelity.py `
@@ -1346,7 +1413,7 @@ python scripts/evaluate_structural_fidelity.py `
 
 ---
 
-# 附录 B：关键实验结果文件
+## 附录 B：关键实验结果文件
 
 ```text
 outputs/
@@ -1369,7 +1436,7 @@ outputs/
 
 ---
 
-# 附录 C：结果表述建议
+## 附录 C：结果表述建议
 
 答辩或报告中建议使用以下表述：
 
@@ -1410,3 +1477,10 @@ outputs/
 当前实验验证的是二维几何轨迹与 Web 动画链路，尚未纳入真实机械臂动力学、逆运动学和执行误差。
 
 这些边界能够避免实验结论超过现有证据所支持的范围。
+
+
+---
+
+## 文档校订说明（2026-10-24）
+
+本轮只修订标题层级、实验版本与可复现性说明、引用与图片说明，并用报告已记录的**四组汇总数字**生成可视化图表。研究结论及数字保持原值，没有增加未做过的实验。原始 Benchmark 数据与本地私人照片不随公开仓库分发，故无法仅凭公开文档独立重新计算全部统计量。涉及学术提交时，建议作者在本地存档原始 CSV、失败日志、Manifest、脚本版本和原始截图。
