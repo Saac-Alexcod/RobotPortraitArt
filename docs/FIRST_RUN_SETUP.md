@@ -1,102 +1,71 @@
-# First-run setup and network troubleshooting (Windows / WSL2)
+# 首次运行、模型准备与人工排障入口
 
-**New:** The proposed single-entry installer is documented in [AUTOMATIC_INSTALL.md](AUTOMATIC_INSTALL.md). The older commands below remain available for manual diagnosis and selective downloads. Do not treat the installer as fresh-Windows verified until the teammate completes the acceptance test.
+> 适用于首次接触 RobotPortraitArt 的组员。**先走自动安装入口**，只有自动下载或环境准备失败时才按照下面的手动方式处理。
 
-This guide targets a **fresh GitHub clone or downloaded ZIP**. It does not assume a specific Windows username, drive letter, WSL home directory, or pre-existing `.venv`. All commands are run from the **project root in PowerShell**.
+## 1. 首次安装（推荐）
 
-## A. Modes and safety
-
-- `scripts/setup_environment.ps1` without flags runs **read-only checks**. It does not install WSL, Python, PyTorch, CUDA, or download weights.
-- `-InstallWindowsDeps` explicitly creates the Windows `.venv` if absent and installs `requirements-web.txt` (needs Python already installed).
-- `-DownloadModels` explicitly downloads YuNet and PPHumanSeg from OpenCV Zoo, **checks their pinned SHA-256 hashes**, and atomically installs them.
-- `-DownloadAPD` explicitly downloads the official upstream Model1 archive and extracts only the generator checkpoint files it recognizes. This archive does **not** have a SHA-256 pinned by this repository; you can optionally supply a previously verified hash via `-APDChecksum`. Upstream network availability and third-party distribution terms are not under our control.
-- Startup (`scripts/start_web.ps1`) performs read-only environment checks, **never downloads/install packages**, and continues in Baseline mode when optional GAN setup is unavailable (unless you specify `-RequireAPDrawingGAN`).
-
-## B. Normal installation
-
-First install Python 3.11, Node.js and Git using trusted vendor installers. WSL and an NVIDIA GPU are not required for the OpenCV Baseline.
+自动安装器已经合并到默认 `main` 分支。在 Windows PowerShell 中执行：
 
 ```powershell
-# 1. Read-only diagnosis
-.\scripts\setup_environment.ps1
-
-# 2. Set up the Windows backend environment (opt-in)
-.\scripts\setup_environment.ps1 -InstallWindowsDeps
-
-# 3. Download the two official OpenCV ONNX models (opt-in)
-.\scripts\setup_environment.ps1 -DownloadModels
+git clone https://github.com/Saac-Alexcod/RobotPortraitArt.git
+cd RobotPortraitArt
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-Optional APDrawingGAN users:
+**组员只需复制命令、查看验收与故障处理**：请使用 [一页上手指南](TEAMMATE_QUICKSTART.md)。安装器当前执行 7 阶段检查/准备：Windows Python → Windows 依赖 → Node/npm → WSL2 → Linux CUDA PyTorch → 模型 → 真实 GAN 与 SVG 推理；不使用 `-NoStart` 则继续尝试启动两个网页服务。
+
+本仓库**未提交** `.venv`、`node_modules`、ONNX、APDrawingGAN checkpoint 及 CelebA 数据集。首次完整 GAN 安装需要足够磁盘空间、访问各官方资源的网络、WSL2 和支持的 NVIDIA GPU/驱动；某些系统条件需要管理员授权或重启。**如果 `wsl.exe` 完全不存在，当前安装器会明确失败，但不会自动替用户启用 Windows WSL 可选功能。**
+
+## 2. 如何看到真正成功的结果
+
+```text
+[PASS] First-run acceptance completed.
+```
+
+除此之外，必须检查 `outputs/first_run_validation/` 中的真实 PNG、SVG、`manifest.json`，浏览器访问 `http://127.0.0.1:5173`，选择 APDrawingGAN + Centerline 完成一次任务。只有网页启动但没有完成 GAN 任务，不算最终用户验收。
+
+若采用 `-NoStart`，会执行真实 GAN 检测但**不启动网页**；`-BaselineOnly` 可在无 CUDA 机器运行 OpenCV 对照方案，但**不代表 GAN 部署完成**。
+
+## 3. 重启、重复执行和网络中断
+
+Windows 提示 UAC / 重启 / Ubuntu 首次用户初始化时，先完成操作，然后返回克隆目录重复执行**相同安装命令**。已有有效组件会尽可能复用。中断后的 `.part` 只是暂存下载，不要自行更名为模型文件；官方网络端点可能不支持精确断点续传。
+
+可选的代理命令（请替换真实端口）：
 
 ```powershell
-# 4. Download upstream Model1 weights (opt-in)
-.\scripts\setup_environment.ps1 -DownloadAPD
-
-# 5. Recheck model files, selected WSL distro, WSL Python, torch/torchvision, CUDA
-.\scripts\setup_environment.ps1 -Distro Ubuntu-22.04
-
-# 6. For GAN users, verify full legacy APDrawingGAN preflight
-python scripts/check_apdrawinggan.py --distro Ubuntu-22.04 --python /home/YOUR_USER/.venvs/robotportrait-apd/bin/python
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Proxy 'http://127.0.0.1:7890'
 ```
 
-**Windows native PyTorch alone is not enough for this release**: the APDrawingGAN runner currently invokes `wsl.exe`. Inside WSL2, provision a dedicated Python environment and compatible PyTorch/torchvision; follow [PyTorch's official installer](https://pytorch.org/get-started/locally/) and the [upstream APDrawingGAN documentation](https://github.com/yiranran/APDrawingGAN). The older research repository originally targeted Python 2.7/PyTorch 0.4+, and the combination used by the project may need compatibility adjustments. The setup assistant therefore **does not blindly install a new PyTorch/CUDA build**.
+WSL NAT 下 localhost 代理警告通常不妨碍本地推理；但如果 WSL 内 `pip` 或模型源真的不可达，需要额外排查 WSL 网络和代理监听。请勿在命令历史、Git 或聊天中公开代理口令。完整指引：[故障排查手册](INSTALL_TROUBLESHOOTING.md)。
 
-Run the backend after diagnosis:
+## 4. 自动下载失败时，模型文件的官方来源
 
-```powershell
-.\scripts\start_web.ps1
-```
-
-The launcher automatically tries `~/.venvs/robotportrait-apd/bin/python` in the chosen WSL distribution (instead of `/home/winter/...`). If your environment lives elsewhere:
-
-```powershell
-.\scripts\start_web.ps1 -Distro Ubuntu-22.04 -APDPython /home/YOUR_USER/special-env/bin/python
-```
-
-## C. Proxy and blocked downloads
-
-Windows and WSL may use **different network proxy settings**. For Windows-side model downloads you may pass a proxy **only for the current invocation**:
-
-```powershell
-.\scripts\setup_environment.ps1 -DownloadModels -Proxy 'http://127.0.0.1:7890'
-.\scripts\setup_environment.ps1 -DownloadAPD -Proxy 'http://127.0.0.1:7890'
-```
-
-Without `-Proxy`, Python normally honors `HTTPS_PROXY` / `HTTP_PROXY` environment variables and configured Windows proxies. `-NoProxy` disables that detection for model downloads. **Avoid including proxy passwords in commands**, because shell history can retain them. Do not disable TLS verification to get around certificate errors; repair the trusted CA configuration instead.
-
-For WSL `pip`, Windows-side `-Proxy` does *not* automatically change its environment. Check networking inside the selected distro. Windows 11 22H2+ supports `autoProxy=true` and `networkingMode=mirrored` in `%USERPROFILE%\.wslconfig`, but these are **system-wide choices** and must be applied manually after reviewing [Microsoft's WSL networking guide](https://learn.microsoft.com/windows/wsl/networking). Do not overwrite another user's `.wslconfig`. WSL might need `wsl --shutdown` before changes take effect.
-
-| Symptom | Cause to inspect | Safe recovery |
+| 资源 | 官方来源 | 项目内期望位置 |
 |---|---|---|
-| Missing WSL or distribution | WSL not installed, distro name differs, WSL1 | `wsl --list --verbose`, then use Microsoft's `wsl --install` instructions; reboot if prompted |
-| Missing WSL Python | Wrong interpreter path, missing `venv` | Create a dedicated environment inside WSL; use `-APDPython` |
-| PyTorch imports but CUDA is False | CPU-only wheel, incompatible driver, WSL GPU unavailable | Check `nvidia-smi` and official PyTorch selector; don't reinstall blindly |
-| HTTP 403/404 or invalid ZIP | Upstream host blocked/moved/needs interactive access | Download from the official upstream page with a browser, then place weights in the expected directory |
-| Proxy 407 | Authenticated proxy required | Ask the network administrator, avoid storing credentials in source/history |
-| DNS/timeout | Proxy, DNS, firewall, VPN, remote endpoint | Verify Windows and WSL networking independently; retry with a trusted approved proxy |
-| SHA-256 mismatch | Partial/corrupt download, HTML or LFS pointer, changed model | Download script deletes the bad partial file and does not overwrite an existing model |
-| Missing weights after download | Incorrect ZIP layout or access problem | Downloader fails safely; inspect official archive and `docs/MODEL_SETUP.md` |
+| YuNet | [OpenCV Zoo YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) | `third_party/models/face_detection_yunet_2023mar.onnx` |
+| PPHumanSeg | [OpenCV Zoo PPHumanSeg](https://github.com/opencv/opencv_zoo/tree/main/models/human_segmentation_pphumanseg) | `third_party/models/human_segmentation_pphumanseg_2023mar.onnx` |
+| APDrawingGAN Model1 | [APDrawingGAN](https://github.com/yiranran/APDrawingGAN) | `third_party/APDrawingGAN/checkpoints/formal_author/300_net_gen.pt`（合并权重布局） |
 
-Partial downloads use `.part` files and attempt an HTTP Range resume on retry; if the server ignores Range the download starts over. The downloader never extracts arbitrary ZIP paths and never overwrites an existing checkpoint. On network errors, a partial archive may remain so a later invocation can resume.
+只从官方/可信来源下载并遵守权重许可，不要把下载的 ZIP、HTML 错误页面、Git LFS 指针文件伪装成 `.pt`/`.onnx`。具体 checkpoint 布局及预检方法见 [模型说明](MODEL_SETUP.md)。**CelebA 不是运行内置示例必需品**，无需为首次部署下载庞大的数据集。
 
-## D. Diagnostics and offline use
+## 5. 有经验的成员可用的高级操作（可选）
 
 ```powershell
-# Windows venv not yet set up? Use system Python 3.11 for read-only diagnostics:
-py -3.11 scripts/doctor_environment.py --distro Ubuntu-22.04
-py -3.11 scripts/bootstrap_models.py
+# 检查已安装 WSL 候选，要求存在可用 Windows Python
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -CheckWSLOnly
 
-# Export a report without uploading personal information:
-py -3.11 scripts/doctor_environment.py --json outputs/setup_diagnostic.json
+# 只配置/验收，不启动前后端
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -NoStart
+
+# 显式复用已经验证的 WSL Python；路径必须是你电脑上的，不是作者用户名
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Distro Ubuntu-22.04 -APDPython '/home/YOUR_USER/.venvs/robotportrait-apd/bin/python'
 ```
 
-You may obtain model files manually and place them at the exact locations in `docs/MODEL_SETUP.md`; the doctor then works offline. This release does not promise every legacy APDrawingGAN dependency runs on every GPU/driver combination. Full readiness still requires an actual image inference, not just a green dependency check.
+保留的手动辅助脚本 `scripts/setup_environment.ps1`、`scripts/doctor_environment.py` 是**故障诊断/分步下载工具**，不是组员首先应尝试的正常安装路线。Windows 的后端 Python 与 Ubuntu 的 GAN Python 是两套独立环境；不要因为 Windows 虚拟环境没有 `torch` 就随意安装或重装 WSL CUDA。
 
-**Model URLs**: [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet), [PPHumanSeg](https://github.com/opencv/opencv_zoo/tree/main/models/human_segmentation_pphumanseg), [APDrawingGAN Model1](https://github.com/yiranran/APDrawingGAN). Only download weights whose usage and distribution terms you have reviewed.
+## 文档导航
 
-### 多版本 Windows Python 与其他 Ubuntu 发行版
-
-新版安装器先探测 Windows Python 3.10–3.12，再枚举 WSL2 发行版及其实际 Python/CUDA 能力。若 Ubuntu-24.04 可用，会直接复用，不会因为不是 Ubuntu-22.04 而重装。固定 PyTorch 2.5.1 / torchvision 0.20.1 组合要求 Python 3.9–3.12；如系统 Python 不适配，会在项目专用虚拟环境中尝试兼容解释器，而非替换全局 Python。Node.js 版本不兼容时使用项目内的官方哈希校验版。
-
-磁盘不足、驱动不兼容或包版本冲突会以非零退出码终止，并显示阶段、详细日志路径和错误码，详见 [INSTALL_TROUBLESHOOTING.md](INSTALL_TROUBLESHOOTING.md)。以上改动仍需要组员在真实 Windows 电脑验证，**不能仅凭本机已有环境成功就声称所有电脑都会 100% 成功**。
+- [组员一页上手](TEAMMATE_QUICKSTART.md)：直接复制命令。
+- [自动安装器执行机制与限制](AUTOMATIC_INSTALL.md)：7 个阶段与真实验收。
+- [故障日志与错误码](INSTALL_TROUBLESHOOTING.md)：网络、WSL、CUDA、版本冲突。
+- [模型与许可证](MODEL_SETUP.md)：上游下载来源和文件要求。
