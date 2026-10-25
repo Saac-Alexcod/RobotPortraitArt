@@ -6,6 +6,18 @@ RobotPortraitArt 是一个基于 Python、FastAPI 和 Vue 3 的肖像生成与�
 
 > **运行范围：** 当前实现的是图像生成、二维像素空间中的路径规划，以及绘制轨迹的**软件模拟**。仓库不包含实体机械臂驱动、关节运动学或硬件闭环控制。
 
+## New computer setup (Windows / WSL2)
+
+**新电脑从 GitHub 克隆的源码不包含 Python 虚拟环境、预训练模型或 WSL CUDA。** 现在提供一个**候选版首次安装入口**，按照“安装缺失项 → 实际 GAN 推理验收 → 启动双端服务”执行。首次部署可能需要管理员授权、Windows 重启或网络代理配置；如被系统中断，重新运行同一个命令即可。
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+详细介绍、支持条件、失败恢复与新电脑验收流程参见 [Automatic install guide](docs/AUTOMATIC_INSTALL.md)。**这是待组员 Windows 新电脑实测的候选安装程序，不保证任意硬件和网络环境 100% 成功。** 安装过程只有真实 APDrawingGAN 推理、SVG 和图像输出完成才能判为成功；离线检查或 Baseline 能运行不能替代这项验收。
+
+仅诊断：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Doctor`。只装 Windows/前端与 Baseline：加 `-BaselineOnly`。针对模型的独立下载工具和说明仍见 [First-run setup](docs/FIRST_RUN_SETUP.md)。
+
 ## 功能概览
 
 - **人脸预处理：** YuNet 五点检测、相似变换对齐和 PPHumanSeg 人像分割（APDrawingGAN 自动模式）。
@@ -191,3 +203,10 @@ outputs/                  本地结果文件（默认忽略）
 本项目集成／参考了 [APDrawingGAN](https://github.com/yiranran/APDrawingGAN) 与 [OpenCV Zoo](https://github.com/opencv/opencv_zoo) 的相关模型和方法。第三方组件适用**各自**的许可证和使用条款，请参见相应上游仓库以及 `third_party/APDrawingGAN/LICENSE`。
 
 **项目根目录目前尚未提供独立的 `LICENSE` 文件。** 因此请勿将本仓库自动理解为采用 MIT、Apache-2.0 或其他开源许可证；代码的再利用和再分发条件需要项目维护者进一步明确。示例人像为合成数据，使用说明见 [`data/examples/README.md`](data/examples/README.md)。
+
+> 首次安装出现下载卡住、代理/WSL/CUDA 错误时，参阅 [首次安装排障与日志指南](docs/INSTALL_TROUBLESHOOTING.md)。安装器只有在真实 GAN 推理与服务检查通过后才报告成功。
+
+
+### First-run compatibility checks (deployment candidate)
+
+The optional Windows `install.ps1` now probes installed Python and WSL2 distributions before setup, prefers a compatible existing Ubuntu environment (including Ubuntu 24.04), and keeps the PyTorch 2.5.1 Python version constraints explicit. It uses a project-local Node distribution when the installed Node is incompatible. See [automatic setup](docs/AUTOMATIC_INSTALL.md) and [troubleshooting](docs/INSTALL_TROUBLESHOOTING.md). The installer remains an **unverified candidate for clean Windows machines** until a teammate completes a fresh installation and actual GAN inference.
