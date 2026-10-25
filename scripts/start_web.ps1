@@ -2,7 +2,7 @@ param(
     [string]$BindHost = "127.0.0.1",
     [int]$Port = 8000,
     [string]$Distro = "Ubuntu-22.04",
-    [string]$APDPython = "/home/winter/.venvs/robotportrait-apd/bin/python",
+    [string]$APDPython = "",
     [switch]$Reload,
     [switch]$RequireAPDrawingGAN
 )
@@ -16,6 +16,23 @@ if (-not (Test-Path $venvPython)) {
     throw "Windows project virtualenv Python not found: $venvPython"
 }
 
+# Automatically prefer the user's existing dedicated WSL virtualenv.
+# Do not assume another contributor has /home/winter on their computer.
+if ([string]::IsNullOrWhiteSpace($APDPython)) {
+    $APDPython = 'python3'
+    try {
+        $findPython = @'
+p="$HOME/.venvs/robotportrait-apd/bin/python"
+if [ -x "$p" ]; then printf "%s" "$p"; else command -v python3; fi
+'@
+        $detected = $findPython | & wsl.exe -d $Distro -- sh -s 2>$null
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($detected)) {
+            $APDPython = ($detected | Select-Object -Last 1).Trim()
+        }
+    } catch {
+        # Baseline startup must not depend on a working WSL environment.
+    }
+}
 $env:ROBOT_PORTRAIT_APD_DISTRO = $Distro
 $env:ROBOT_PORTRAIT_APD_PYTHON = $APDPython
 $env:PYTHONUTF8 = "1"
@@ -43,6 +60,17 @@ if not torch.cuda.is_available():
 print("gpu:", torch.cuda.get_device_name(0))
 '@
 
+# This is a read-only preflight. Never install packages or download models on startup.
+$requiredModels = @(
+    (Join-Path $repoRoot 'third_party\models\face_detection_yunet_2023mar.onnx'),
+    (Join-Path $repoRoot 'third_party\models\human_segmentation_pphumanseg_2023mar.onnx')
+)
+foreach ($model in $requiredModels) {
+    if (-not (Test-Path $model)) {
+        Write-Warning "Optional model missing: $model"
+        Write-Warning 'Run scripts/setup_environment.ps1 -DownloadModels to set up official ONNX files.'
+    }
+}
 Write-Host "[RobotPortraitArt] Checking APDrawingGAN WSL/CUDA environment..."
 
 $preflightPassed = $false

@@ -1,5 +1,7 @@
 # Optional APDrawingGAN setup
 
+For a fresh Windows computer, begin with [First-run setup and networking](FIRST_RUN_SETUP.md). It provides read-only diagnostics and opt-in, integrity-checked downloads.
+
 本说明面向希望从 **OpenCV Baseline** 升级到 **APDrawingGAN 自动预处理 + WSL/CUDA 推理** 的使用者。无需 GPU 的最小上手流程请先阅读仓库根目录 `README.md`。
 
 ## 1. Why weights are not included
