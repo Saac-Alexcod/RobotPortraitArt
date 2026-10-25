@@ -36,13 +36,39 @@
 示例（在项目根目录的 PowerShell）：
 
 ```powershell
+# 自动选择发行版及已有 CUDA Python 环境
+.\scripts\start_web.ps1
+
+# 首次安装独立 WSL 环境，之后普通启动会自动找到它
+.\scripts\start_web.ps1 -SetupAPD
+
 # 按你的实际 WSL 发行版与 Python 位置替换参数
 .\scripts\start_web.ps1 `
   -Distro Ubuntu-22.04 `
   -APDPython /home/you/.venvs/robotportrait-apd/bin/python
 ```
 
-启动后打开 `http://127.0.0.1:8000/api/methods`，同时确认：
+未传 `-APDPython` 时，脚本优先读取 `ROBOT_PORTRAIT_APD_PYTHON` 环境变量；未配置则扫描 WSL 当前用户的常见 venv/Conda 环境和系统 Python，选择依赖及 CUDA 运算检查通过的解释器。`-Distro` / `ROBOT_PORTRAIT_APD_DISTRO` 可覆盖自动选择的发行版。自定义路径使用 Linux 绝对路径，无需修改脚本。
+
+`-SetupAPD` 只管理 WSL 当前用户的 `~/.venvs/robotportrait-apd`，不会向系统 Python 安装包。此安装配置支持 WSL Python 3.10–3.12，使用 PyTorch 2.5.1 / torchvision 0.20.1 的 CUDA 12.1 包，并安装推理所需的 NumPy、Pillow、dominate 和 OpenCV。它是一个固定的兼容配置，不能保证支持所有显卡；若 GPU/驱动不兼容，请自行准备合适的环境并用 `-APDPython` 指定。安装会先检查 `nvidia-smi`，最后执行 CUDA 运算检查；失败会停止，修复原因后可重试。
+
+需要提前安装 WSL 发行版及支持 WSL CUDA 的 NVIDIA Windows 驱动。若提示缺少 venv，在所选 Ubuntu 的终端执行 `sudo apt update`、`sudo apt install python3-venv`，然后重试 `-SetupAPD`。该选项不能与 `-CheckOnly` 或显式 `-APDPython` 同用；初始化时忽略继承的 `ROBOT_PORTRAIT_APD_PYTHON`，始终安装到托管环境。普通启动仍优先采用环境变量，如需恢复自动检测，可在 PowerShell 执行 `Remove-Item Env:ROBOT_PORTRAIT_APD_PYTHON -ErrorAction SilentlyContinue`。
+
+安装包需要 WSL 能访问 PyPI 和 PyTorch 下载站。出现 localhost 代理警告且下载失败时，请先让 WSL 使用可访问的代理地址或直连，再重试；脚本不修改全局 WSL 网络设置。仅出现代理警告不代表本地 Python 无法运行。
+
+如果已有 `bin/python` 但提示 `No module named ensurepip` / `pip`，可能是上次创建环境中断。脚本会检测 pip 并尝试补齐环境，不删除已有包。若系统缺少组件，会提示与当前 Python 次版本匹配的 Ubuntu 包；例如 Python 3.10 可在 PowerShell 执行：
+
+```powershell
+wsl -d Ubuntu-22.04 -- sudo apt-get update
+wsl -d Ubuntu-22.04 -- sudo apt-get install -y python3.10-venv
+.\scripts\start_web.ps1 -SetupAPD
+```
+
+`sudo` 可能要求输入 WSL 用户密码。其他发行版应替换发行版名称，并按脚本提示安装对应的 venv 包。
+
+`-SetupAPD` 不下载 checkpoint、YuNet 或 PPHumanSeg 模型，仍需按上表准备。`-CheckOnly` 仅检查环境及可用端口，不安装包、不启动服务；要同时验证完整 GAN 可用性，可运行 `.\scripts\start_web.ps1 -CheckOnly -RequireAPDrawingGAN`。
+
+启动后打开终端打印的 API 地址加 `/api/methods`（8000 被占用时会自动换端口），同时确认：
 
 1. `apdrawinggan.available` 是 `true`；
 2. `preflight.ready` 是 `true`；

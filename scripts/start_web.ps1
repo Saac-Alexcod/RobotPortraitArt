@@ -1,122 +1,57 @@
-param(
+﻿param(
     [string]$BindHost = "127.0.0.1",
-    [int]$Port = 8000,
-    [string]$Distro = "Ubuntu-22.04",
-    [string]$APDPython = "/home/winter/.venvs/robotportrait-apd/bin/python",
+    [ValidateRange(1, 65535)][int]$Port = 8000,
+    [string]$Distro = $env:ROBOT_PORTRAIT_APD_DISTRO,
+    [string]$APDPython = $env:ROBOT_PORTRAIT_APD_PYTHON,
     [switch]$Reload,
-    [switch]$RequireAPDrawingGAN
+    [switch]$RequireAPDrawingGAN,
+    [switch]$SetupAPD,
+    [switch]$SetupCartoon,
+    [switch]$CheckOnly
 )
 
 $ErrorActionPreference = "Stop"
-
+$env:PYTHONUTF8 = "1"
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $venvPython = Join-Path $repoRoot ".venv\Scripts\python.exe"
 
+# Setup always creates the managed environment, even if an older launcher left
+# a Python override in this PowerShell session. Explicit parameters still win.
+if ($SetupAPD -and -not $PSBoundParameters.ContainsKey("APDPython")) {
+    $APDPython = ""
+}
+if ($SetupAPD -and ($CheckOnly -or $APDPython)) {
+    throw "Use -SetupAPD without -CheckOnly or -APDPython."
+}
+if ($SetupCartoon -and $CheckOnly) { throw "Use -SetupCartoon without -CheckOnly." }
+
+# Bootstrap only the project's Windows environment. WSL packages are opt-in.
 if (-not (Test-Path $venvPython)) {
-    throw "Windows project virtualenv Python not found: $venvPython"
-}
-
-$env:ROBOT_PORTRAIT_APD_DISTRO = $Distro
-$env:ROBOT_PORTRAIT_APD_PYTHON = $APDPython
-$env:PYTHONUTF8 = "1"
-
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-
-Write-Host ""
-Write-Host "[RobotPortraitArt] Web backend startup"
-Write-Host "  Repo:           $repoRoot"
-Write-Host "  Windows Python: $venvPython"
-Write-Host "  WSL distro:     $Distro"
-Write-Host "  APD Python:     $APDPython"
-Write-Host "  API:            http://${BindHost}:$Port"
-Write-Host ""
-
-$preflightCode = @'
-import torch
-
-print("torch:", torch.__version__)
-print("cuda:", torch.cuda.is_available())
-
-if not torch.cuda.is_available():
-    raise SystemExit("PyTorch CUDA is unavailable.")
-
-print("gpu:", torch.cuda.get_device_name(0))
-'@
-
-Write-Host "[RobotPortraitArt] Checking APDrawingGAN WSL/CUDA environment..."
-
-$preflightPassed = $false
-$preflightFailure = $null
-
-try {
-    $wslExe = (Get-Command wsl.exe -ErrorAction Stop).Source
-
-    # Feed Python code through stdin instead of `python -c` so PowerShell/wsl.exe
-    # quoting cannot strip the quotes inside the Python program.
-    $preflightCode | & $wslExe `
-        -d $Distro `
-        -- `
-        $APDPython `
-        -
-
-    if ($LASTEXITCODE -eq 0) {
-        $preflightPassed = $true
+    if ($CheckOnly) { throw "Project .venv is missing. Run .\scripts\start_web.ps1 to create it." }
+    Write-Host "[RobotPortraitArt] Creating Windows .venv..."
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        & py -3 -m venv (Join-Path $repoRoot ".venv")
     }
-    else {
-        $preflightFailure = (
-            "APDrawingGAN WSL/CUDA preflight exited with code " +
-            "$LASTEXITCODE."
-        )
+    elseif (Get-Command python -ErrorAction SilentlyContinue) {
+        & python -m venv (Join-Path $repoRoot ".venv")
     }
-}
-catch {
-    $preflightFailure = $_.Exception.Message
-}
-
-if ($preflightPassed) {
-    Write-Host ""
-    Write-Host "[RobotPortraitArt] APDrawingGAN WSL/CUDA preflight passed."
-}
-else {
-    if ([string]::IsNullOrWhiteSpace($preflightFailure)) {
-        $preflightFailure = "unknown error"
-    }
-
-    $message = (
-        "APDrawingGAN WSL/CUDA preflight failed: " +
-        $preflightFailure
-    )
-
-    if ($RequireAPDrawingGAN) {
-        throw $message
-    }
-
-    Write-Warning $message
-    Write-Warning (
-        "FastAPI will continue in degraded mode. " +
-        "Baseline remains available; /api/methods reports APDrawingGAN status."
-    )
+    else { throw "Install Python 3.10+ for Windows, then run this script again." }
+    if ($LASTEXITCODE -ne 0) { throw "Could not create Windows .venv. Python 3.10+ is required." }
 }
 
-Write-Host "[RobotPortraitArt] Starting FastAPI..."
-Write-Host ""
-
-$uvicornArgs = @(
-    "-m", "uvicorn",
-    "robot_portrait.web.app:app",
-    "--app-dir", (Join-Path $repoRoot "src"),
-    "--host", $BindHost,
-    "--port", "$Port"
-)
-
-if ($Reload) {
-    $uvicornArgs += "--reload"
-}
+$launcherArgs = @((Join-Path $PSScriptRoot "start_web.py"), "--host", $BindHost, "--port", "$Port")
+if ($Distro) { $launcherArgs += @("--distro", $Distro) }
+if ($APDPython) { $launcherArgs += @("--apd-python", $APDPython) }
+if ($Reload) { $launcherArgs += "--reload" }
+if ($RequireAPDrawingGAN) { $launcherArgs += "--require-apdrawinggan" }
+if ($SetupAPD) { $launcherArgs += "--setup-apd" }
+if ($SetupCartoon) { $launcherArgs += "--setup-cartoon" }
+if ($CheckOnly) { $launcherArgs += "--check-only" }
 
 Push-Location $repoRoot
 try {
-    & $venvPython @uvicornArgs
+    & $venvPython @launcherArgs
+    if ($LASTEXITCODE -ne 0) { throw "Web launcher exited with code $LASTEXITCODE. See the message above." }
 }
-finally {
-    Pop-Location
-}
+finally { Pop-Location }

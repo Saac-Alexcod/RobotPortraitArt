@@ -501,6 +501,11 @@ def create_app(
                 },
             )
 
+        if method == "cartoon" and int(size) != 256:
+            raise HTTPException(status_code=422, detail={
+                "code": "cartoon_size", "message": "GANs N' Roses 当前要求 size=256",
+            })
+
         if (
             method == "apdrawinggan"
             and int(size) != 512
@@ -516,9 +521,9 @@ def create_app(
             )
 
         # Baseline is an in-process OpenCV generator and has no external
-        # preflight.  Only APDrawingGAN needs an availability gate here; this
+        # preflight. External WSL generators need an availability gate here; this
         # keeps the Baseline fallback responsive even when WSL/CUDA is down.
-        if method == "apdrawinggan":
+        if method in {"apdrawinggan", "cartoon"}:
             method_status = (
                 _effective_method_metadata(
                     method,
@@ -542,7 +547,7 @@ def create_app(
                                 "reason"
                             )
                             or (
-                                "APDrawingGAN 当前不可用"
+                                f"{method} 当前不可用"
                             )
                         ),
                         "method": method,

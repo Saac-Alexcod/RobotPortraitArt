@@ -18,7 +18,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173`. Vite proxies `/api` to `http://127.0.0.1:8000`.
+Open `http://127.0.0.1:5173` (or the address printed by Vite). The backend launcher selects an available port starting at 8000 and writes `.cache/web-runtime.json`. Vite reads that file before each API request, so backend port changes require no edits or frontend restart. If several backends run, the most recently started instance is used. To connect to a manually launched backend, set `ROBOT_PORTRAIT_API_URL` before starting Vite; this overrides automatic discovery.
 
 The upload panel now includes a **four-image sample gallery**. Clicking a sample selects a real JPEG `File` for the existing upload flow; manual file selection and drag-and-drop still work. Sample files are mirrored in `frontend/public/examples/` for Vite static serving and originate from [`../data/examples/`](../data/examples/). Baseline can run without APDrawingGAN model weights. Advanced GAN mode is only enabled when reported available by the backend.
 

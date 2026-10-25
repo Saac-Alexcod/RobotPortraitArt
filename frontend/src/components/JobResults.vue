@@ -57,9 +57,12 @@ const resultStages = computed<ResultStage[]>(() => {
   if (files.aligned_input) {
     stages.push(stage('aligned', '对齐输入', 'Aligned Input', '实际送入 APDrawingGAN 的图像', files.aligned_input, 'photo'))
   }
+  if (files.vector_input) {
+    stages.push(stage('lines', '卡通轮廓', 'Vector Input', '从彩色卡通提取的实际绘制线条', files.vector_input, 'photo'))
+  }
 
   stages.push(
-    stage('portrait', '艺术肖像', 'GAN Portrait', '模型生成的栅格线稿', files.raster_portrait, 'portrait'),
+    stage('portrait', '艺术肖像', 'Portrait', props.job.method === 'cartoon' ? '模型生成的彩色卡通肖像' : '生成的栅格线稿', files.raster_portrait, 'portrait'),
     stage('vector', '机器人轨迹', 'Robot Vector', '可下载的 SVG 矢量路径', files.vector_render || files.vector_svg, 'vector'),
   )
   return stages
@@ -231,7 +234,7 @@ function formatMilliseconds(value: number | undefined): string {
           <span class="result-kicker">01 / 核心成果</span>
           <h3>两种形式，一条完整绘制链路</h3>
         </div>
-        <p>左侧呈现 GAN 生成的艺术线稿，右侧呈现实际导出的机器人 SVG 轨迹。</p>
+        <p>左侧呈现生成的艺术肖像，右侧呈现实际导出的单笔 SVG 轨迹。</p>
       </div>
       <div class="result-feature-grid" :class="{ 'result-feature-grid--detail': artworkView === 'detail' }">
         <article v-for="stage in featuredStages" :key="stage.key" class="result-feature-card" :class="`result-feature-card--${stage.kind}`">
@@ -325,6 +328,13 @@ function formatMilliseconds(value: number | undefined): string {
         <p>以下数字读取 Manifest；像素距离为图像坐标尺度，并非实际机械臂行程。</p>
       </div>
       <div class="metrics-grid metrics-grid--presentation">
+        <template v-if="manifest?.evaluation">
+          <article><span>原图 → 风格图 · SSIM</span><strong>{{ formatNumber(manifest.evaluation.source_to_portrait.ssim, 3) }}</strong><small>结构相似性</small></article>
+          <article><span>原图 → 风格图 · Edge-F1</span><strong>{{ formatNumber(manifest.evaluation.source_to_portrait.edge_f1 ?? undefined, 3) }}</strong></article>
+          <article><span>原图 → 矢量图 · SSIM</span><strong>{{ formatNumber(manifest.evaluation.source_to_vector.ssim, 3) }}</strong></article>
+          <article><span>原图 → 矢量图 · Edge-F1</span><strong>{{ formatNumber(manifest.evaluation.source_to_vector.edge_f1 ?? undefined, 3) }}</strong></article>
+          <article><span>绘制线条 → SVG · Edge-F1</span><strong>{{ formatNumber(manifest.evaluation.vector_retention.edge_f1 ?? undefined, 3) }}</strong><small>矢量化细节保留</small></article>
+        </template>
         <article><span>绘制笔画数 · Strokes</span><strong>{{ formatNumber(strokeCount) }}</strong></article>
         <article><span>落笔长度 · Pen-down</span><strong>{{ formatNumber(vectorMetrics?.pen_down_length_px, 1) }} <small>px</small></strong></article>
         <article><span>抬笔空程 · Pen-up</span><strong>{{ formatNumber(vectorMetrics?.pen_up_length_px, 1) }} <small>px</small></strong></article>
@@ -332,6 +342,8 @@ function formatMilliseconds(value: number | undefined): string {
         <article><span>任务总耗时</span><strong>{{ formatMilliseconds(timings?.total) }}</strong></article>
         <article v-if="optimizationRatio !== null" class="metric-optimization"><span>2-opt 抬笔空程优化率</span><strong>{{ optimizationRatio >= 0 ? '↓' : '↑' }} {{ Math.abs(optimizationRatio * 100).toFixed(2) }}%</strong><small>相对于 Greedy 初始排序</small></article>
       </div>
+
+      <p v-if="manifest?.evaluation" class="metrics-explainer">{{ manifest.evaluation.note }} 比较基准：{{ manifest.evaluation.reference }}；统一 256 × 256，轮廓容差 2 px。</p>
 
       <div v-if="showPathComparison" class="optimizer-story">
         <div class="optimizer-story__intro">
@@ -359,6 +371,7 @@ function formatMilliseconds(value: number | undefined): string {
       <span>RESULT FILES</span>
       <a v-if="job.result_files.raster_portrait" :href="fileUrl(job.result_files.raster_portrait)" :download="job.result_files.raster_portrait">肖像 PNG ↓</a>
       <a v-if="job.result_files.vector_svg" :href="fileUrl(job.result_files.vector_svg)" :download="job.result_files.vector_svg">机器人 SVG ↓</a>
+      <a v-if="job.result_files.vector_input" :href="fileUrl(job.result_files.vector_input)" :download="job.result_files.vector_input">卡通轮廓 PNG ↓</a>
       <a v-if="job.result_files.manifest" :href="fileUrl(job.result_files.manifest)" :download="job.result_files.manifest">Manifest JSON ↓</a>
     </div>
     <div class="result-footnote"><code>{{ job.job_id }}</code><span>{{ job.method }} · {{ job.vector_mode }} · {{ job.size }} px</span></div>

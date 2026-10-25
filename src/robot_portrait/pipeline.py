@@ -21,7 +21,8 @@ from .generators import (
     PortraitGenerator,
     PreprocessTransform,
 )
-from .io import write_image
+from .io import write_image, read_image
+from .quality import evaluate_portrait
 from .preprocessing import (
     PreprocessResult,
     preprocess_portrait,
@@ -184,6 +185,8 @@ class PipelineResult:
     timings_ms: dict[str, float]
 
     warnings: tuple[str, ...] = ()
+    evaluation: dict[str, Any] = field(default_factory=dict)
+    vector_input_path: Path | None = None
 
     def to_manifest(
         self,
@@ -204,6 +207,7 @@ class PipelineResult:
                 str(self.output_dir),
 
             "files": {
+                **({"vector_input": self.vector_input_path.name} if self.vector_input_path else {}),
                 "prepared":
                     self.prepared_path.name,
 
@@ -222,6 +226,7 @@ class PipelineResult:
 
             "preprocessing":
                 self.preprocessing,
+            "evaluation": self.evaluation,
 
             "generation":
                 self.generation,
@@ -454,6 +459,7 @@ class GenerationPipeline:
         output_dir: Path,
     ) -> tuple[Path, ...]:
         paths: list[Path] = [
+            output_dir / "vector_input.png",
             output_dir
             / "prepared.png",
 
@@ -672,6 +678,12 @@ class GenerationPipeline:
         raster = (
             generation_output.image
         )
+        vector_input = generation_output.vector_image
+        vector_input_path = None
+        if vector_input is not None:
+            vector_input_path = write_image(output_dir / "vector_input.png", vector_input)
+        else:
+            vector_input = raster
 
         write_image(
             raster_path,
@@ -696,7 +708,7 @@ class GenerationPipeline:
 
         vectorization = (
             raster_to_svg(
-                raster,
+                vector_input,
                 svg_path,
                 **self.config.vector,
             )
@@ -735,6 +747,19 @@ class GenerationPipeline:
             .value
         ] = self._elapsed_ms(
             stage_start
+        )
+
+        # Use the same geometry as the generator; APD aligns the original face.
+        reference = preprocess_result.image
+        reference_name = "prepared.png (original face crop)"
+        apd = generation_output.metadata.get("apdrawinggan_preprocess", {})
+        aligned = apd.get("files", {}).get("aligned_image") if isinstance(apd, dict) else None
+        if aligned:
+            reference = read_image(aligned)
+            reference_name = "apdrawinggan aligned original"
+        evaluation = evaluate_portrait(
+            reference, raster, read_image(vector_render_path), vector_input,
+            cartoon=(method == "cartoon"), reference_name=reference_name,
         )
 
         timings[
@@ -777,6 +802,8 @@ class GenerationPipeline:
         )
 
         result = PipelineResult(
+            evaluation=evaluation,
+            vector_input_path=vector_input_path,
             input_path=input_path,
             output_dir=output_dir,
 

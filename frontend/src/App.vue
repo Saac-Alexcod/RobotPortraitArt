@@ -271,6 +271,7 @@ const canSubmit = computed(
       selectedMethod.value !== 'apdrawinggan'
       || selectedSize.value === 512
     )
+    && (selectedMethod.value !== 'cartoon' || selectedSize.value === 256)
   ),
 )
 
@@ -282,6 +283,7 @@ function methodDisplayName(name: string): string {
   if (name === 'apdrawinggan') {
     return 'APDrawingGAN'
   }
+  if (name === 'cartoon') return "GANs N’ Roses · 卡通"
 
   return name
 }
@@ -646,6 +648,7 @@ watch(
     if (method === 'apdrawinggan') {
       selectedSize.value = 512
     }
+    if (method === 'cartoon') selectedSize.value = 256
 
     submitError.value = null
     resetJobTracking()
@@ -831,13 +834,13 @@ onBeforeUnmount(() => {
               <legend>生成模型</legend>
               <div class="option-grid">
                 <button v-for="method in methods" :key="method.name" class="option-card" :class="{ 'option-card--selected': selectedMethod === method.name, 'option-card--disabled': !method.available }" type="button" :disabled="!method.available" :aria-pressed="selectedMethod === method.name" @click="pickMethod(method)">
-                  <span><strong>{{ methodDisplayName(method.name) }}</strong><em class="method-role">{{ method.name === 'apdrawinggan' ? '艺术生成' : '经典对照' }}</em><small>{{ method.available ? '可用于本次任务' : backendDetail(method) }}</small></span><span class="studio-option-check" aria-hidden="true">{{ selectedMethod === method.name ? '✓' : '' }}</span>
+                  <span><strong>{{ methodDisplayName(method.name) }}</strong><em class="method-role">{{ method.name === 'cartoon' ? '卡通风格化' : method.name === 'apdrawinggan' ? '艺术生成' : '经典对照' }}</em><small>{{ method.available ? '可用于本次任务' : backendDetail(method) }}</small></span><span class="studio-option-check" aria-hidden="true">{{ selectedMethod === method.name ? '✓' : '' }}</span>
                 </button>
               </div>
             </fieldset>
             <div class="studio-settings__row">
               <fieldset><legend>矢量提取</legend><div class="segmented-control"><label><input v-model="selectedVectorMode" type="radio" value="contour"><span><strong>Contour</strong><small>边界轮廓</small></span></label><label><input v-model="selectedVectorMode" type="radio" value="centerline"><span><strong>Centerline</strong><small>中心线轨迹</small></span></label></div></fieldset>
-              <fieldset><legend>输出尺寸</legend><label class="size-field"><span><strong>画布大小</strong><small>{{ selectedMethod === 'apdrawinggan' ? 'GAN 固定尺寸' : '64–2048 px' }}</small></span><input v-model.number="selectedSize" type="number" min="64" max="2048" step="1" :disabled="selectedMethod === 'apdrawinggan'"></label></fieldset>
+              <fieldset><legend>输出尺寸</legend><label class="size-field"><span><strong>画布大小</strong><small>{{ selectedMethod !== 'baseline' ? 'GAN 固定尺寸' : '64–2048 px' }}</small></span><input v-model.number="selectedSize" type="number" min="64" max="2048" step="1" :disabled="selectedMethod !== 'baseline'"></label></fieldset>
             </div>
             <button class="button button--generate studio-generate" type="submit" :disabled="!canSubmit"><span>{{ isSubmitting ? '正在提交…' : '生成肖像与绘制轨迹' }}</span><span aria-hidden="true">→</span></button>
             <p v-if="submitError" class="form-error" role="alert">{{ submitError }}</p>

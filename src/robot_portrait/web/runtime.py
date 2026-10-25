@@ -14,6 +14,7 @@ from ..pipeline import (
     GenerationPipeline,
     PipelineConfig,
 )
+from ..generators.cartoon import CartoonGenerator
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -120,6 +121,11 @@ def build_pipeline(
                 .name
             ):
                 apdrawinggan,
+            CartoonGenerator.name: CartoonGenerator(
+                PROJECT_ROOT,
+                os.environ.get("ROBOT_PORTRAIT_APD_DISTRO", "Ubuntu-22.04"),
+                os.environ.get("ROBOT_PORTRAIT_APD_PYTHON", "python3"),
+            ),
         },
     )
 
@@ -151,6 +157,11 @@ def default_generator_statuses() -> dict[str, dict[str, object]]:
         )
 
         return {
+            "cartoon": {
+                "available": False,
+                "reason": f"生成器预检异常：{type(exc).__name__}: {exc}",
+                "details": {"backend": "gans-n-roses"},
+            },
             "apdrawinggan": {
                 "available": False,
                 "reason": (

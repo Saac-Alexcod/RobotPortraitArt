@@ -58,11 +58,16 @@ third_party/APDrawingGAN/dataset/
 *.pt
 *.ckpt
 *.onnx
+third_party/GANsNRoses/
 *.safetensors
 
 # Generated outputs and reports; keep only the directory marker
 outputs/*
 !outputs/.gitkeep
+
+# Local presentation workspace and downloaded APDrawingGAN model archives
+/.chart-data-5B5k7q/
+/APDrawingGAN-Models*.zip
 
 # Generic build and temporary files
 build/

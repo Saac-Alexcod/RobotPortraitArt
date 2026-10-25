@@ -103,6 +103,7 @@ class GeneratorOutput:
     image: np.ndarray = field(repr=False)
     metadata: dict[str, Any] = field(default_factory=dict)
     warnings: tuple[str, ...] = ()
+    vector_image: np.ndarray | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         image = self.image
@@ -110,6 +111,12 @@ class GeneratorOutput:
             raise ValueError(
                 "generator output image 必须是非空 numpy 数组"
             )
+        if self.vector_image is not None and (
+            not isinstance(self.vector_image, np.ndarray)
+            or self.vector_image.size == 0
+            or self.vector_image.shape[:2] != image.shape[:2]
+        ):
+            raise ValueError("vector_image 必须与肖像图像尺寸相同")
 
 
 class GeneratorUnavailableError(RuntimeError):

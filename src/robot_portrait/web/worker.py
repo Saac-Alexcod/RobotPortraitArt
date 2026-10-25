@@ -34,6 +34,9 @@ def _result_files_for_job(
         "vector_render": result.vector_render_path.name,
         "manifest": result.manifest_path.name,
     }
+    vector_input = getattr(result, "vector_input_path", None)
+    if vector_input is not None and Path(vector_input).is_file():
+        result_files["vector_input"] = Path(vector_input).name
 
     generation = getattr(result, "generation", None)
     if not isinstance(generation, dict):

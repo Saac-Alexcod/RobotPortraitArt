@@ -910,6 +910,7 @@ def test_default_pipeline_registers_web_generators_without_running_preflight():
     assert pipeline.supported_methods == (
         "apdrawinggan",
         "baseline",
+        "cartoon",
     )
 
 

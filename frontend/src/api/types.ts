@@ -86,6 +86,14 @@ export interface TimingMetrics {
 }
 
 export interface ManifestResponse {
+  evaluation?: {
+    protocol: string
+    reference: string
+    note: string
+    source_to_portrait: { ssim: number; edge_f1: number | null }
+    source_to_vector: { ssim: number; edge_f1: number | null }
+    vector_retention: { ssim: number; edge_f1: number | null }
+  }
   schema_version?: number
   status?: string
   method?: string
