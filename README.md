@@ -1,261 +1,122 @@
 # RobotPortraitArt
 
-**从人脸照片生成艺术肖像，再转换为有序的 SVG 机器人绘制轨迹。**
+RobotPortraitArt 将人像照片转换为艺术肖像和有序 SVG 绘制轨迹。项目提供网页工作台和命令行流水线，可选择不同的人像生成方式、矢量化方式，并在浏览器中预览 SVG 的逐笔绘制过程。
 
-RobotPortraitArt 是一个基于 Python、FastAPI 和 Vue 3 的肖像生成与绘制路径可视化项目。它提供三种肖像生成方法（OpenCV Baseline / APDrawingGAN / GANs N’ Roses 卡通）、两种矢量化方法（Contour / Centerline），并将路径规划结果用于浏览器中的真实 SVG 逐笔模拟。
+当前项目实现的是图像处理、二维路径规划和软件绘制模拟，不包含实体机械臂驱动、运动学或硬件闭环控制。
 
-> **运行范围：** 当前实现的是图像生成、二维像素空间中的路径规划，以及绘制轨迹的**软件模拟**。仓库不包含实体机械臂驱动、关节运动学或硬件闭环控制。
+## 项目使用的技术
 
-## 团队成员首次安装（Windows，先看这里）
+| 部分 | 技术与用途 |
+| --- | --- |
+| 后端 | Python、FastAPI、Uvicorn；接收图片、创建和查询任务、提供结果文件与 API 文档。 |
+| 图像处理 | OpenCV、NumPy、Pillow、scikit-image、PyYAML；完成人像处理、线稿生成及配置读取。 |
+| 前端 | Vue 3、TypeScript、Vite；上传图片、选择生成和矢量化方法、查看结果及绘制动画。 |
+| 人像生成 | OpenCV Baseline 可直接运行；APDrawingGAN 和 GANs N' Roses 是需要额外模型及 WSL/CUDA 环境的可选方法。 |
+| 矢量化与路径 | Contour 和 Centerline 将图像转换为 SVG 路径；Centerline 还包含骨架图整理和笔画路径规划。 |
+| 输出 | 人像及中间结果图片、SVG、任务清单 JSON；网页提供结果预览和下载。 |
 
-> **完整自动安装入口位于 `anime-addition` 分支。** 首次部署仍需在目标电脑上进行实际验收。
+仓库提供合成示例图片，可用于体验，不需要准备 CelebA 数据集。模型权重、自动人脸检测和人体分割的 ONNX 文件没有随仓库分发；它们只在启用相应模型时需要。
 
-打开 **Windows PowerShell**，直接运行：
+## 环境要求
+
+推荐使用 Windows 10/11 64 位和 PowerShell。完整 GAN 部署还需要 WSL2/Ubuntu、支持 WSL CUDA 的 NVIDIA 显卡及驱动，并需要下载模型文件。
+
+| 使用方式 | 需要的软件 |
+| --- | --- |
+| 网页 + OpenCV Baseline | Python 3.10 及以上、Node.js 22.12 及以上（含 npm）。不要求 WSL、NVIDIA GPU 或 GAN 权重。 |
+| APDrawingGAN / GANs N' Roses | 在 Baseline 基础上增加 WSL2/Ubuntu、可用的 NVIDIA WSL CUDA 环境和对应模型权重。 |
+| 克隆仓库 | Git。若代码已经下载到本机，则不需要 Git。 |
+
+Python 3.11 是手动新建虚拟环境的推荐版本。项目中的 `requirements-web.txt` 安装后端及图像处理依赖；`frontend/package-lock.json` 锁定前端依赖。`requirements-optional.txt` 中的 LPIPS 和 CairoSVG 用于可选评估或 SVG 回栅格化，不是网页启动的必需依赖。
+
+## 方式一：使用安装脚本
+
+在 Windows PowerShell 中进入仓库根目录运行：
 
 ```powershell
-git clone --branch anime-addition https://github.com/Saac-Alexcod/RobotPortraitArt.git
-cd RobotPortraitArt
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-安装器将尽可能**检测并复用**已有 Windows Python、Node、WSL2 和 GAN 环境；缺少部分软件和官方模型时尝试下载安装，然后分别运行 **APDrawingGAN 和 GANs N’ Roses → SVG** 真实推理验收，并启动 FastAPI 与 Vue。
+默认安装流程会检查或准备 Windows Python 虚拟环境、后端依赖、Node/npm、WSL Ubuntu、WSL 中的 PyTorch/CUDA 运行环境和模型文件；随后实际运行 APDrawingGAN 与 GANs N' Roses 的生成验收，并启动后端和前端。完成后在浏览器打开 `http://127.0.0.1:5173`。服务终端会显示 API 地址，默认 API 文档地址为 `http://127.0.0.1:8000/docs`。
 
-安装后**手动打开** `http://127.0.0.1:5173`，选内置正面示例并试用 APDrawingGAN + Centerline。需要 `Git` 先安装才能克隆；本机 GAN 还需要支持 WSL CUDA 的 NVIDIA GPU、可用驱动及授权访问下载源。**`wsl.exe` 完全缺失时当前脚本不能自动启用 Windows WSL 组件，需要按系统提示人工启用/重启。** 无 GPU 可尝试 `-BaselineOnly`，但它不是 GAN 已成功安装的标志。
+完整安装需要联网并会下载较大的软件包和模型。首次安装 WSL 可能需要管理员授权、完成 Ubuntu 初始化或重启 Windows；如果系统尚未启用 WSL/虚拟机平台组件，需按 Windows 提示启用后再重新运行安装命令。安装器会尽量复用已有环境，失败时可以修复对应问题后再次运行。
 
-**给组员的操作说明：** [一页快速上手](docs/TEAMMATE_QUICKSTART.md) · [自动安装全过程](docs/AUTOMATIC_INSTALL.md) · [首次安装与模型](docs/FIRST_RUN_SETUP.md) · [故障、错误码和日志](docs/INSTALL_TROUBLESHOOTING.md)。遇到失败先看提示和 `outputs/installer_logs/`，**不要直接删除现有 Python、Ubuntu 和模型**。如需 Windows 重启或首次 Ubuntu 初始化，完成后重新运行同一安装命令。
-
-> **发布状态：候选安装器。** 维护者本机已完成真实 GAN 出图及前后端启动验证，但组员的全新 Windows 环境还未得到充分实机验收；不能承诺所有硬件、网络和权限条件下 100% 成功。
-
-## 功能概览
-
-- **人脸预处理：** YuNet 五点检测、相似变换对齐和 PPHumanSeg 人像分割（APDrawingGAN 自动模式）。
-- **艺术肖像生成：** OpenCV Baseline 可作为轻量对照；APDrawingGAN 使用独立的 WSL/PyTorch CUDA 环境。
-- **卡通风格：** GANs N’ Roses 在同一 WSL/CUDA 环境推理，Windows 继续启动主程序；首次运行 `.\scripts\start_web.ps1 -SetupCartoon`。配置、模型限制与评分方法见 [卡通接入与课程验收](docs/CARTOON_SETUP.md)，实测见 [验收记录](docs/COURSE_VALIDATION.md)。
-- **轨迹生成：** Contour 或 Centerline 矢量化；中心线模式包含骨架图处理、Minimum-Lift Trail Cover、Greedy 和 2-opt 抬笔路径优化。
-- **可交互 Web 界面：** 上传人像、提交并查看任务状态、查看各阶段图片、A/B 对比、SVG 逐笔播放及结果下载。
-- **实验评估：** 提供 SSIM、Edge-F1、可选 LPIPS、批量评估与可复现的矢量化对比脚本。
-
-## 示例输入
-
-仓库内置 **4 张轻量级 AI 合成人像**，无需下载 CelebA 或寻找真人照片即可试用。建议先选择正面样例；侧脸图主要用于观察算法边界。
-
-| 基础正面 | 长发细节 | 眼镜细节 | 侧脸挑战 |
-|:--:|:--:|:--:|:--:|
-| <img src="data/examples/portrait_sample.jpg" alt="短发正面合成人像" width="155" /> | <img src="data/examples/portrait_long_hair.jpg" alt="长发合成人像" width="155" /> | <img src="data/examples/portrait_glasses.jpg" alt="戴眼镜合成人像" width="155" /> | <img src="data/examples/portrait_profile_challenge.jpg" alt="侧脸挑战合成人像" width="155" /> |
-| `portrait_sample.jpg` | `portrait_long_hair.jpg` | `portrait_glasses.jpg` | `portrait_profile_challenge.jpg` |
-| 推荐首次体验 | 观察发丝线条 | 观察眼镜轮廓 | 自动人脸检测可能失败 |
-
-以下为**第一张图片在本项目中实际运行 OpenCV Baseline + Centerline 得到的结果**，不是 APDrawingGAN 输出，也不是模拟绘制的美化图片：
-
-| 示例输入 | OpenCV Baseline | Centerline 轨迹预览 |
-|:--:|:--:|:--:|
-| <img src="data/examples/portrait_sample.jpg" alt="AI 合成的人脸输入" width="180" /> | <img src="docs/assets/sample_baseline_portrait.png" alt="真实 Baseline 线稿" width="180" /> | <img src="docs/assets/sample_baseline_vector.png" alt="真实 SVG 回栅格预览" width="180" /> |
-
-- [样例说明及适用范围](data/examples/README.md)；所有样例均为合成人像，非 CelebA 图片。
-- Web 工作台可直接点击四张示例缩略图载入图片（无需在文件管理器中寻找）；命令行则使用 `--input data/examples/文件名`。
-- **侧脸挑战样例不保证 YuNet 对齐或 GAN 推理成功**；这不是人脸检测成功率的基准测试。
-- `data/input/demo_face.png` 是简笔画图形测试图，不作为自动人脸检测的标准样例。
-
-## 运行流程
-
-```mermaid
-flowchart LR
-    A[人脸照片] --> B[图像预处理]
-    B --> C{生成方法}
-    C --> D[OpenCV Baseline]
-    C --> E[APDrawingGAN]
-    D --> F[线稿图像]
-    E --> F
-    F --> G{矢量化}
-    G --> H[Contour]
-    G --> I[Centerline]
-    H --> J[SVG 路径]
-    I --> K[图结构与轨迹规划]
-    K --> J
-    J --> L[结果对比与逐笔绘制模拟]
-```
-
-## 开发者手动启动（可选，首次使用请优先用上方安装器）
-
-手动部署建议使用经过验证的 **Python 3.10–3.12**、Node.js（满足 [`frontend/package.json`](frontend/package.json) 的 Vite 版本要求）、npm 和 PowerShell。APDrawingGAN 另外需要 WSL2、独立 Python/PyTorch 环境及可用的模型权重；**Baseline 不需要 CUDA 或 APDrawingGAN 权重**。
-
-### 1. 获取代码和安装后端依赖
+没有 NVIDIA GPU 或只想试用 Baseline 时，运行：
 
 ```powershell
-git clone https://github.com/Saac-Alexcod/RobotPortraitArt.git
-cd RobotPortraitArt
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements-web.txt
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -BaselineOnly
 ```
 
-也可以跳过手动创建 `.venv` 和安装依赖：安装好 Windows Python 3.10+ 后直接运行启动脚本，它会在首次启动时创建项目 `.venv` 并安装缺少的后端依赖。下载失败时会停止并显示错误，修复网络后重试即可。
+`-BaselineOnly` 会安装网页所需依赖并启动服务，不配置 WSL/CUDA/GAN 模型。若要完成完整环境和模型验收、但暂时不启动网页，可加 `-NoStart`。安装日志位于 `outputs/first_run_setup.log` 和 `outputs/installer_logs/`。
 
-### 2. 启动 API
+## 方式二：手动安装和运行
+
+以下步骤不运行 `install.ps1`，以 Windows PowerShell 为例。命令从仓库根目录执行。
+
+### 1. 创建 Python 环境并安装后端依赖
 
 ```powershell
-.\scripts\start_web.ps1
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements-web.txt
 ```
 
-优先使用 `http://127.0.0.1:8000`；端口被占用时自动尝试 8001、8002 等（最多 100 个端口），不会结束已有进程。以终端打印的 `API` 地址为准，接口文档为该地址加 `/docs`。
+如果电脑上的 Python 版本不是 3.11，请把 `py -3.11` 换成已安装的 Python 3.10 或更新版本。此处使用项目虚拟环境中的 Python，后续后端命令也使用同一路径。
+
+### 2. 启动后端
+
+在一个 PowerShell 窗口中从仓库根目录运行：
 
 ```powershell
-# 仅检查环境和端口，不安装依赖、不启动服务
-.\scripts\start_web.ps1 -CheckOnly
-# 首次准备 APDrawingGAN 的 WSL Python/CUDA 依赖，成功后启动后端
-.\scripts\start_web.ps1 -SetupAPD
+.\.venv\Scripts\python.exe -m uvicorn robot_portrait.web.app:app --app-dir src --host 127.0.0.1 --port 8000
 ```
 
-`-SetupAPD` 需要已安装 WSL Ubuntu 和支持 CUDA 的 NVIDIA 驱动，会下载较大的 PyTorch 包；具体前提、代理问题与模型准备见 [配置说明](docs/MODEL_SETUP.md)。普通启动不自动下载 GAN 依赖。
+后端运行期间保持该窗口打开。健康检查地址为 `http://127.0.0.1:8000/api/health`，交互式 API 文档为 `http://127.0.0.1:8000/docs`。
 
-> 该脚本会尝试检查 WSL 中的 APDrawingGAN；如果 WSL/CUDA 不可用，它会给出警告并继续启动 **Baseline**。这不是完整 GAN 环境已配置成功的标志。首次使用可访问 `GET /api/methods` 查看实际可用方法。
+### 3. 安装并启动前端
 
-### 3. 启动前端（另开一个终端）
+第一次使用时，在另一个 PowerShell 窗口执行 `npm ci` 安装锁定版本的前端依赖；以后启动时只需运行 `npm run dev`：
 
 ```powershell
-cd frontend
+Set-Location .\frontend
 npm ci
 npm run dev
 ```
 
-访问：**http://127.0.0.1:5173**（若前端端口被占用，以 Vite 输出为准）。Vite 从 `.cache/web-runtime.json` 自动读取后端地址，后端换端口后无需修改前端配置或重启 Vite。多个后端同时运行时，前端连接最后启动的实例。在上传区点击「试用示例人像」里的任一缩略图（首次推荐短发正面），先用 **OpenCV Baseline + Centerline** 验证完整上传、生成、下载流程；完成模型准备后再切换 APDrawingGAN。
+保持前端窗口打开，在浏览器访问 `http://127.0.0.1:5173`。如果 Vite 输出了其他端口，以终端显示的地址为准。前端默认连接 `http://127.0.0.1:8000`；若后端改用其他地址，可在启动 Vite 前设置 `ROBOT_PORTRAIT_API_URL`。
 
-### 4. 命令行最小示例（无需 GAN 权重）
+### 4. 运行命令行流水线（可选）
 
-从仓库根目录、在虚拟环境中执行：
+网页以外，也可以直接对示例图片运行 Baseline + Centerline：
 
 ```powershell
-python scripts/run_pipeline.py `
-  --input data/examples/portrait_sample.jpg `
-  --output-dir outputs/sample_baseline `
+.\.venv\Scripts\python.exe .\scripts\run_pipeline.py `
+  --input .\data\examples\portrait_sample.jpg `
+  --output-dir .\outputs\sample_baseline `
   --method baseline `
-  --config configs/centerline.yaml `
+  --config .\configs\centerline.yaml `
   --size 512
 ```
 
-结果写入 `outputs/sample_baseline/`。`outputs/` 属于本地产物，不提交到 Git。
+结果写入 `outputs/sample_baseline/`。更多公开示例及适用说明见 [`data/examples/README.md`](data/examples/README.md)。
 
-## 卡通模型使用注意事项
+## 可选 GAN 模型
 
-当前已接入 **GANs N’ Roses**，前端显示为「GANs N’ Roses · 卡通」。Windows 运行 FastAPI、Vue 和矢量化流程，WSL2 内的 PyTorch/CUDA 运行模型；无需把整个项目迁入 Linux。
+网页和命令行默认都可使用 OpenCV Baseline；启动后端时若 WSL/GAN 环境不可用，Baseline 仍可运行。网页会根据后端报告的模型状态启用或禁用对应选项。
 
-```powershell
-# 已有可用 WSL PyTorch/CUDA 环境：下载卡通模型并启动后端
-.\scripts\start_web.ps1 -SetupCartoon
-# 新机器：先准备 WSL Ubuntu 和 NVIDIA 驱动，再同时初始化环境与模型
-.\scripts\start_web.ps1 -SetupAPD -SetupCartoon
-# 安装后正常启动
-.\scripts\start_web.ps1
-```
+- **APDrawingGAN**：需要 WSL2 中可进行 CUDA 推理的 Python/PyTorch 环境，以及 APDrawingGAN checkpoint、YuNet 人脸检测 ONNX 和 PPHumanSeg 人体分割 ONNX。仓库不包含这些权重。下载位置、环境检查和手动配置见 [`docs/MODEL_SETUP.md`](docs/MODEL_SETUP.md)。
+- **GANs N' Roses**：需要 WSL/CUDA 推理环境及该模型权重。安装脚本会尝试准备并验收此模型；手动接入说明见 [`docs/CARTOON_SETUP.md`](docs/CARTOON_SETUP.md)。
 
-- **首次安装需要联网：** `-SetupCartoon` 从 Windows 下载固定版本源码及约 302 MiB 官方权重到 `third_party/GANsNRoses/`，校验 checkpoint SHA256 并保留来源记录。普通启动和 `-CheckOnly` 不会自动下载模型；模型、环境、PPT 工作目录及运行产物不随 Git 分支分发。
-- **环境与尺寸：** 复用 APDrawingGAN 的 WSL Python 自动发现逻辑，支持 `-Distro`、`-APDPython` 覆盖，无需改用户名。卡通模型固定 256×256，APDrawingGAN 固定 512×512；前端选择风格后自动设置尺寸。`-SetupCartoon` 不能与 `-CheckOnly` 同用。
-- **画风与身份保留：** GANs N’ Roses 的预训练数据主要为女性自拍。男性、眼镜、侧脸可能出现性别外观、发型、五官变化；模型可用不等于原人物身份保留达标。参见 [上游模型说明](https://github.com/mchong6/GANsNRoses)。
-- **矢量输出：** 保留彩色卡通 PNG，同时提取黑白轮廓生成 SVG；单笔绘制不保留彩色填充。建议用 Centerline 检查细节及抬笔路径，逐笔显示属于软件模拟。
-- **评分边界：** 「技术数据」提供原图→风格图、原图→矢量图的 SSIM / Edge-F1，以及线条→SVG 的保留程度。这些指标不是艺术逼真度、身份认证或课程总分；正式评分仍需人工评价，不能把四张示例的结果外推到全部人像。
-- **第二个卡通模型状态：** 已确定按课题要求采用 **U-GAT-IT**，但当前分支尚未接入其推理代码和权重，也没有该模型的实测评分。其 [官方 PyTorch 仓库](https://github.com/znxlwm/UGATIT-pytorch) 与 [官方 TensorFlow 权重](https://github.com/taki0112/UGATIT#pretrained-model) 属于不同框架；TensorFlow checkpoint 不能直接用 `torch.load` 加载。后续需要独立适配并验证，不能将现有 `-SetupCartoon` 误认为 U-GAT-IT 安装命令。
+模型依赖不等于模型权重：仅安装 Python 包或 WSL 环境不会自动让 GAN 可用。不要将第三方 checkpoint、ONNX 权重或 CelebA 人像数据提交到仓库；下载及使用时遵守各上游项目的许可条款。
 
-完整说明见 [卡通接入与课程验收](docs/CARTOON_SETUP.md)，已完成模型的实际结果见 [验收记录](docs/COURSE_VALIDATION.md)。本机 `outputs/course_evaluation/` 中的 HTML、CSV、PNG 和 SVG 不提交 Git；其他机器可运行 `python scripts/evaluate_course.py` 重新生成。
-
-## 启用 APDrawingGAN
-
-**Git 仓库不附带 GAN checkpoint、YuNet / PPHumanSeg ONNX 模型及整个 CelebA 数据集。** 这是为了避免模型文件过大、数据再分发和第三方授权问题。
-
-需要另外准备：
-
-| 文件或环境 | 本项目期望的位置／说明 |
-|---|---|
-| APDrawingGAN 源码 | `third_party/APDrawingGAN/`（仓库已有第三方源码） |
-| APDrawingGAN checkpoint | `third_party/APDrawingGAN/checkpoints/formal_author/300_net_gen.pt`（或适配器支持的对应官方权重布局） |
-| YuNet ONNX | `third_party/models/face_detection_yunet_2023mar.onnx` |
-| PPHumanSeg ONNX | `third_party/models/human_segmentation_pphumanseg_2023mar.onnx` |
-| 推理环境 | WSL2 内的 Python / PyTorch CUDA，启动脚本自动选择已安装的 Ubuntu，也可用 `-Distro` 指定 |
-
-官方资源链接、配置与检查命令见 **[模型与环境配置说明](docs/MODEL_SETUP.md)**。使用他人的模型权重前请遵守上游许可证与发布条件。
-
-可用性检查：
+## 开发检查
 
 ```powershell
-python scripts/check_apdrawinggan.py --python /path/to/wsl/python
-python scripts/run_pipeline.py --list-methods --apd-python /path/to/wsl/python
-```
-
-路径示例应替换为**你自己的 WSL Python 可执行文件**，不需要使用作者计算机的用户名或磁盘路径。
-
-`start_web.ps1` 优先采用 `-APDPython` 参数，其次读取 `ROBOT_PORTRAIT_APD_PYTHON` 环境变量；两者都未配置时，扫描 WSL 当前用户的 `~/.venvs/robotportrait-apd`、常见 venv/Conda 环境及系统 Python，选择依赖与 CUDA 检查通过的解释器。发行版优先采用 `-Distro` 或 `ROBOT_PORTRAIT_APD_DISTRO`，否则依次选择已安装的 Ubuntu-22.04、Ubuntu-24.04、Ubuntu 或其他非 Docker 发行版。无需修改脚本中的用户名或路径。例如：
-
-```powershell
-.\scripts\start_web.ps1
-# 已有独立的 WSL 环境时，传入该环境的 Linux 绝对路径：
-.\scripts\start_web.ps1 -APDPython /home/you/.venvs/robotportrait-apd/bin/python
-```
-
-Windows 的 `.venv\Scripts\python.exe` 用于 FastAPI，APDrawingGAN 依赖安装到 **WSL Python** 中。没有可用 GAN 环境时，普通启动继续提供 Baseline；`-RequireAPDrawingGAN` 则要求环境、checkpoint 和自动预处理模型均通过检查，否则停止。显式传入的解释器无效时会报告错误，不会悄悄换成其他环境。
-
-## API 与输出
-
-| 接口 | 用途 |
-|---|---|
-| `GET /api/health` | 后端存活检查 |
-| `GET /api/methods` | 生成方法及环境可用性 |
-| `POST /api/jobs` | 上传图片并创建处理任务 |
-| `GET /api/jobs/{job_id}` | 查询任务状态 |
-| `GET /api/jobs/{job_id}/manifest` | 获取本次任务的指标与文件清单 |
-| `GET /api/jobs/{job_id}/files/{filename}` | 下载允许访问的输出文件 |
-
-成功任务通常包括预处理图片、艺术肖像 PNG、机器人 SVG、矢量预览和 Manifest JSON；APDrawingGAN 自动模式还可能提供模型实际使用的对齐输入。实际文件以 Manifest 为准。
-
-> **指标解释：** `Pen-down` 是笔尖落笔后的图像路径长度，`Pen-up` 是笔尖抬起移动的图像路径长度；2-opt 优化率表示相对于初始排序的空程改善，**不等于画质提升或实体机器人运行时间节约率**。
-
-## 测试与项目结构
-
-```powershell
-python -m pytest -q
-cd frontend
+\.venv\Scripts\python.exe -m pip install pytest
+\.venv\Scripts\python.exe -m pytest -q
+Set-Location .\frontend
 npm run typecheck
 npm run build
 ```
 
-主要目录：
-
-```text
-frontend/                 Vue 3 / TypeScript 交互界面
-src/robot_portrait/       Python Pipeline、算法与 FastAPI
-src/robot_portrait/web/   API、任务存储与 Worker
-configs/                  Contour / Centerline 配置
-scripts/                  启动、测试、评估工具
-tests/                    自动测试
-data/examples/             可公开分发的示例输入
-data/input/                本地个人输入（默认忽略）
-data/CelebA/               可选外部数据集（不分发）
-third_party/              APDrawingGAN 源码与本地模型目录
-outputs/                  本地结果文件（默认忽略）
-```
-
-### 文档导航及版本说明
-
-- **[正式技术与实验报告](docs/FINAL_REPORT.md)**：截至 2026-10-19 的 Core 20 张、40 次历史 Benchmark；含统计口径、失败案例、评价边界及汇总图表。**并非**本页四张合成示例的测试结果。
-- **[阶段性固定栅格实验](EXPERIMENTS.md)**：E0–E5 路径规划过程日志，包含单图消融结果；历史测试数不要当成当前版本测试总数。
-- **[版本、证据及答辩引用指南](docs/DOCUMENTATION_STATUS.md)**：区分 `v1.0.1` 软件版本与旧实验提交，说明未公开的原始数据和可以准确引用的数字。
-- **[历史交接记录](docs/FINAL_HANDOFF_20261024.md)**：开发时点的答辩准备快照，不用作最新运行手册。
-- **[近期历史与请求耗时](docs/RECENT_HISTORY_AND_LATENCY.md)**：浏览器本地历史和短期预检缓存的功能边界。
-
-> 报告中的成功率、运行时间与结构 F1 都来自特定历史实验环境。要确认当前电脑上的最新性能，请亲自运行并记录环境，不要直接将旧实验均值描述为 `v1.0.1` 的新测结果。
-
-## 已知限制
-
-- Git 仓库**不包含**模型权重或预装环境；功能分支中的 `install.ps1` 会尝试自动准备所需组件，但遇到缺失 WSL 系统组件、权限、驱动或第三方网络限制时可能仍需人工处理。
-- Centerline 对大面积黑色填充、交叉线及背景纹理可能产生较多分支和碎线。
-- 生成轨迹属于二维像素空间中的 SVG 绘制顺序，不包含实体机械臂所需的物理标定、动力学与运动控制。
-- 推理速度、结果质量和部分 GPU 运算的确定性受环境及输入图像影响。
-- 本仓库不是 CelebA 的镜像；大型训练/评估数据应从原始提供方获取并遵守其使用限制。
-
-## 致谢、第三方依赖与许可
-
-本项目集成／参考了 [APDrawingGAN](https://github.com/yiranran/APDrawingGAN) 与 [OpenCV Zoo](https://github.com/opencv/opencv_zoo) 的相关模型和方法。第三方组件适用**各自**的许可证和使用条款，请参见相应上游仓库以及 `third_party/APDrawingGAN/LICENSE`。
-
-参考工程包括 APDrawingGAN、APDrawingGAN++、U-GAT-IT、GANs N' Roses 与 CelebA。使用时请遵守各自许可证和数据协议。
-
-**项目根目录目前尚未提供独立的 `LICENSE` 文件。** 因此请勿将本仓库自动理解为采用 MIT、Apache-2.0 或其他开源许可证；代码的再利用和再分发条件需要项目维护者进一步明确。示例人像为合成数据，使用说明见 [`data/examples/README.md`](data/examples/README.md)。
-
-> 首次安装出现下载卡住、代理/WSL/CUDA 错误时，参阅 [首次安装排障与日志指南](docs/INSTALL_TROUBLESHOOTING.md)。默认模式的完成门槛是实际 GAN 推理与服务检查；浏览器交互仍须人工测试。
+更多首次安装与故障排查说明见 [`docs/TEAMMATE_QUICKSTART.md`](docs/TEAMMATE_QUICKSTART.md) 和 [`docs/INSTALL_TROUBLESHOOTING.md`](docs/INSTALL_TROUBLESHOOTING.md)。
