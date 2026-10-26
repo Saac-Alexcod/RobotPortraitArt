@@ -8,7 +8,7 @@ RobotPortraitArt 是一个基于 Python、FastAPI 和 Vue 3 的肖像生成与�
 
 ## 团队成员首次安装（Windows，先看这里）
 
-> **自动安装器已经合并到默认 `main` 分支。** 新组员直接克隆仓库即可获取 `install.ps1`。首次部署仍需进行实际验收。
+> **完整自动安装入口位于 `anime-addition` 分支。** 首次部署仍需在目标电脑上进行实际验收。
 
 打开 **Windows PowerShell**，直接运行：
 
