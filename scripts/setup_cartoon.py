@@ -16,6 +16,7 @@ CHECKPOINT_SHA256 = "36eb8254155dffb12aed780d1ea479a5bb852e2087dea72e032e2290705
 
 def download(url: str, destination: Path, *, expected_size: int | None = None) -> str:
     destination.parent.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256()
     if not destination.is_file():
         temporary = destination.with_suffix(destination.suffix + ".download")
         print(f"Downloading {destination.name} ...", flush=True)
@@ -24,12 +25,20 @@ def download(url: str, destination: Path, *, expected_size: int | None = None) -
                 raise RuntimeError(f"Download returned HTML instead of a file: {url}")
             while chunk := response.read(1024 * 1024):
                 output.write(chunk)
+                digest.update(chunk)
         if expected_size is not None and temporary.stat().st_size != expected_size:
             raise RuntimeError(f"Incomplete download: {temporary}")
+        if expected_size is not None and digest.hexdigest() != CHECKPOINT_SHA256:
+            temporary.unlink()
+            raise RuntimeError("GANs N' Roses checkpoint SHA256 mismatch; retry the official download.")
         temporary.replace(destination)
+        return digest.hexdigest()
     if expected_size is not None and destination.stat().st_size != expected_size:
         raise RuntimeError(f"Unexpected checkpoint size: {destination}")
-    return hashlib.sha256(destination.read_bytes()).hexdigest()
+    with destination.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def setup() -> None:

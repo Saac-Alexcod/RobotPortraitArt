@@ -24,6 +24,7 @@ from robot_portrait.generators import (
     APDrawingGANGeneratorConfig,
     BaselineGenerator,
 )
+from robot_portrait.generators.cartoon import CartoonGenerator
 from robot_portrait.pipeline import (
     GenerationPipeline,
     PipelineConfig,
@@ -242,6 +243,8 @@ def main() -> None:
             ),
         APDrawingGANAutoPreprocessGenerator.name:
             apdrawinggan_generator,
+        CartoonGenerator.name:
+            CartoonGenerator(ROOT, args.apd_distro, args.apd_python),
     }
 
     pipeline = GenerationPipeline(
@@ -279,6 +282,9 @@ def main() -> None:
             "--method apdrawinggan 当前要求 "
             "--size 512"
         )
+
+    if args.method == "cartoon" and args.size != 256:
+        parser.error("--method cartoon requires --size 256")
 
     if (
         args.method

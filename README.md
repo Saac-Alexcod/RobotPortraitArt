@@ -6,6 +6,26 @@ RobotPortraitArt 是一个基于 Python、FastAPI 和 Vue 3 的肖像生成与�
 
 > **运行范围：** 当前实现的是图像生成、二维像素空间中的路径规划，以及绘制轨迹的**软件模拟**。仓库不包含实体机械臂驱动、关节运动学或硬件闭环控制。
 
+## 团队成员首次安装（Windows，先看这里）
+
+> **自动安装器已经合并到默认 `main` 分支。** 新组员直接克隆仓库即可获取 `install.ps1`。首次部署仍需进行实际验收。
+
+打开 **Windows PowerShell**，直接运行：
+
+```powershell
+git clone --branch anime-addition https://github.com/Saac-Alexcod/RobotPortraitArt.git
+cd RobotPortraitArt
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+安装器将尽可能**检测并复用**已有 Windows Python、Node、WSL2 和 GAN 环境；缺少部分软件和官方模型时尝试下载安装，然后分别运行 **APDrawingGAN 和 GANs N’ Roses → SVG** 真实推理验收，并启动 FastAPI 与 Vue。
+
+安装后**手动打开** `http://127.0.0.1:5173`，选内置正面示例并试用 APDrawingGAN + Centerline。需要 `Git` 先安装才能克隆；本机 GAN 还需要支持 WSL CUDA 的 NVIDIA GPU、可用驱动及授权访问下载源。**`wsl.exe` 完全缺失时当前脚本不能自动启用 Windows WSL 组件，需要按系统提示人工启用/重启。** 无 GPU 可尝试 `-BaselineOnly`，但它不是 GAN 已成功安装的标志。
+
+**给组员的操作说明：** [一页快速上手](docs/TEAMMATE_QUICKSTART.md) · [自动安装全过程](docs/AUTOMATIC_INSTALL.md) · [首次安装与模型](docs/FIRST_RUN_SETUP.md) · [故障、错误码和日志](docs/INSTALL_TROUBLESHOOTING.md)。遇到失败先看提示和 `outputs/installer_logs/`，**不要直接删除现有 Python、Ubuntu 和模型**。如需 Windows 重启或首次 Ubuntu 初始化，完成后重新运行同一安装命令。
+
+> **发布状态：候选安装器。** 维护者本机已完成真实 GAN 出图及前后端启动验证，但组员的全新 Windows 环境还未得到充分实机验收；不能承诺所有硬件、网络和权限条件下 100% 成功。
+
 ## 功能概览
 
 - **人脸预处理：** YuNet 五点检测、相似变换对齐和 PPHumanSeg 人像分割（APDrawingGAN 自动模式）。
@@ -55,9 +75,9 @@ flowchart LR
     J --> L[结果对比与逐笔绘制模拟]
 ```
 
-## 快速开始（Windows + PowerShell）
+## 开发者手动启动（可选，首次使用请优先用上方安装器）
 
-建议使用 **Python 3.10+**、Node.js（满足 [`frontend/package.json`](frontend/package.json) 的 Vite 版本要求）、npm 和 PowerShell。APDrawingGAN 另外需要 WSL2、独立 Python/PyTorch 环境及可用的模型权重；**Baseline 不需要 CUDA 或 APDrawingGAN 权重**。
+手动部署建议使用经过验证的 **Python 3.10–3.12**、Node.js（满足 [`frontend/package.json`](frontend/package.json) 的 Vite 版本要求）、npm 和 PowerShell。APDrawingGAN 另外需要 WSL2、独立 Python/PyTorch 环境及可用的模型权重；**Baseline 不需要 CUDA 或 APDrawingGAN 权重**。
 
 ### 1. 获取代码和安装后端依赖
 
@@ -224,7 +244,7 @@ outputs/                  本地结果文件（默认忽略）
 
 ## 已知限制
 
-- APDrawingGAN 模型环境和 checkpoint 需要使用者自行配置；克隆仓库不能自动获得完整 GAN 推理能力。
+- Git 仓库**不包含**模型权重或预装环境；功能分支中的 `install.ps1` 会尝试自动准备所需组件，但遇到缺失 WSL 系统组件、权限、驱动或第三方网络限制时可能仍需人工处理。
 - Centerline 对大面积黑色填充、交叉线及背景纹理可能产生较多分支和碎线。
 - 生成轨迹属于二维像素空间中的 SVG 绘制顺序，不包含实体机械臂所需的物理标定、动力学与运动控制。
 - 推理速度、结果质量和部分 GPU 运算的确定性受环境及输入图像影响。
@@ -237,3 +257,5 @@ outputs/                  本地结果文件（默认忽略）
 参考工程包括 APDrawingGAN、APDrawingGAN++、U-GAT-IT、GANs N' Roses 与 CelebA。使用时请遵守各自许可证和数据协议。
 
 **项目根目录目前尚未提供独立的 `LICENSE` 文件。** 因此请勿将本仓库自动理解为采用 MIT、Apache-2.0 或其他开源许可证；代码的再利用和再分发条件需要项目维护者进一步明确。示例人像为合成数据，使用说明见 [`data/examples/README.md`](data/examples/README.md)。
+
+> 首次安装出现下载卡住、代理/WSL/CUDA 错误时，参阅 [首次安装排障与日志指南](docs/INSTALL_TROUBLESHOOTING.md)。默认模式的完成门槛是实际 GAN 推理与服务检查；浏览器交互仍须人工测试。
