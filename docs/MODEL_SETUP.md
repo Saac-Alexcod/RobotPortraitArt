@@ -1,5 +1,7 @@
 # Optional APDrawingGAN setup
 
+新组员先看 [一页上手指南](TEAMMATE_QUICKSTART.md)，使用功能分支的 `install.ps1` 尝试自动安装和模型校验；本文件提供手动准备模型与环境的补充说明。
+
 本说明面向希望从 **OpenCV Baseline** 升级到 **APDrawingGAN 自动预处理 + WSL/CUDA 推理** 的使用者。无需 GPU 的最小上手流程请先阅读仓库根目录 `README.md`。
 
 ## 1. Why weights are not included
@@ -10,7 +12,7 @@
 - YuNet / PPHumanSeg ONNX 权重；
 - CelebA 数据集、人像私有数据及历史运行输出。
 
-这有利于减小仓库体积，并尊重第三方权重或数据的再分发条件。**下载源代码不会自动配置 GPU 推理功能。**
+这有利于减小仓库体积，并尊重第三方权重或数据的再分发条件。**仅下载源码不会自动获得模型或 CUDA；需执行功能分支中的 `install.ps1` 尝试自动准备，或按本文件手动配置。**
 
 ## 2. Obtain official model files
 

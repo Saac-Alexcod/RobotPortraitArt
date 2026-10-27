@@ -75,3 +75,5 @@ Thumbs.db
 # Frontend dependencies and Vite cache
 node_modules/
 .vite/
+# Isolated, SHA-256-verified portable Node.js used by the first-run installer
+.rpa_tools/
