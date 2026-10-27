@@ -51,7 +51,9 @@ data/**/*.rar
 data/apdrawing_preprocessed/*
 !data/apdrawing_preprocessed/.gitkeep
 !data/apdrawing_preprocessed/README.md
-third_party/APDrawingGAN/
+third_party/APDrawingGAN/checkpoints/
+third_party/APDrawingGAN/results/
+third_party/APDrawingGAN/dataset/
 third_party/GANsNRoses/
 third_party/models/
 *.safetensors

@@ -126,7 +126,8 @@ python scripts/download_models.py --model cartoon
 - **下载位置与大小：** APDrawingGAN 权重安装到 `third_party/APDrawingGAN/checkpoints/formal_author/`，预处理权重安装到 `third_party/models/`；GANs N’ Roses 源码和约 302 MiB 的权重安装到 `third_party/GANsNRoses/`。APDrawingGAN 解压后的 checkpoint 约 243 MiB，另需为下载压缩包和临时文件预留空间。
 - **校验与重复执行：** 权重按项目固定 SHA256 校验，校验通过的本地文件直接复用，损坏文件自动重新下载；只有下载完成并校验通过才替换目标文件。哈希来自本项目已使用的模型文件，不是上游数字签名；模型目录的 `provenance.json` 记录来源和哈希。
 - **失败重试：** 每个文件下载失败最多尝试三次。中断后可重新运行；未完成的文件会重新下载，不支持断点续传。请勿同时启动多个下载进程。
-- **已有文件复用：** APDrawingGAN 优先复用项目根目录中通过校验的 `APDrawingGAN-Models1.zip`，仅提取所需 checkpoint；其源码使用项目已包含的适配版本。GANs N’ Roses 下载固定上游版本的推理源码。
+- **源码自动补齐：** APDrawingGAN 自动检查 `third_party/APDrawingGAN/`，优先从本地 Git 历史恢复缺失文件；无法恢复时，从 `codeload.github.com` 下载项目固定提交 `13a03f7` 的兼容源码快照，按随脚本提供的清单校验每个下载文件的大小和 SHA256。无需手动克隆 APDrawingGAN，也不要求本机安装 Git。已有源码文件和模型权重不会被覆盖。`download_models.py`、`bootstrap_models.py --download-apd` 和安装器均已接入。
+- **已有文件复用：** APDrawingGAN 优先复用项目根目录中通过校验的 `APDrawingGAN-Models1.zip`，仅提取所需 checkpoint。GANs N’ Roses 下载固定上游版本的推理源码。
 - **下载后的运行条件：** 下载脚本仅准备模型文件。实际推理需要 WSL2 Ubuntu、可用的 PyTorch/CUDA 环境和支持 CUDA 的 NVIDIA 驱动。模型文件不随 Git 分发，使用时请遵守上游许可证与发布条件。
 
 ```powershell
@@ -144,6 +145,24 @@ python scripts/download_models.py --model cartoon
 `-Setup` 会下载较大的 PyTorch 包，不能与 `-APDPython` 同时使用；已有自定义 WSL 环境时，先单独下载模型，再用 `-APDPython` 指定解释器运行。普通运行不会自动安装依赖或下载模型。原有 `start_web.ps1 -SetupAPD` **只准备 WSL 环境，不下载 APDrawingGAN 权重**。
 
 单图运行默认将两个模型的 PNG、SVG 和运行记录分别保存到 `outputs/models/apdrawinggan/` 和 `outputs/models/cartoon/`。更多运行参数见 [自动下载与运行说明](docs/AUTO_MODELS.md)。
+
+### GANs N’ Roses 下载过慢：换源或导入已有权重
+
+当前默认使用作者发布的 Google Drive 权重，尚未验证可替代它的公开镜像。若有可访问的 HTTPS 权重直链，可以指定下载源；文件必须与官方推理权重完全一致，脚本仍检查大小和 SHA256。以下地址是占位示例，需替换成实际直链：
+
+```powershell
+python scripts/setup_cartoon.py --checkpoint-url "https://你的下载站/GNR_checkpoint.pt"
+```
+
+也可在当前 PowerShell 设置 `$env:ROBOT_PORTRAIT_GNR_URL = "https://你的下载站/GNR_checkpoint.pt"`，然后运行 `python scripts/download_models.py --model cartoon`；安装器和 Web 的 `-SetupCartoon` 同样会读取此设置。换源不保证提速，取决于实际网络连接。已有校验通过的本地权重会直接复用。
+
+这台机器已下载过模型时，可把 `third_party/GANsNRoses/GNR_checkpoint.pt` 复制到另一台机器，再导入，无需重新下载约 302 MiB 的权重：
+
+```powershell
+python scripts/setup_cartoon.py --checkpoint-file "D:\models\GNR_checkpoint.pt"
+```
+
+也支持环境变量 `ROBOT_PORTRAIT_GNR_FILE`。本地文件设置优先于环境变量中的 URL，显式 `--checkpoint-url` 则优先于环境变量；同一次命令不能同时传两个参数。缺少的推理源码仍会从 GitHub 下载，完整离线迁移可复制整个 `third_party/GANsNRoses/` 目录。仅此处的单独下载脚本支持这两个命令行参数，统一安装入口请使用环境变量。
 
 ## 开发检查
 

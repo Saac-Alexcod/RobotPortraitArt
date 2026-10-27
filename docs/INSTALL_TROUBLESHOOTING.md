@@ -99,3 +99,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -CheckWSLO
 注意这个只读操作本身依赖一个可运行的 Windows Python；如果电脑连 Python 都没有，它可能提示缺少诊断解释器，此时应直接运行正常首次安装入口，而不是误认 WSL 坏了。
 
 更多说明：[一页快速上手](TEAMMATE_QUICKSTART.md) · [自动安装阶段](AUTOMATIC_INSTALL.md) · [模型与权重](MODEL_SETUP.md)。
+
+## APDrawingGAN 提示 repo_layout 未就绪
+
+如果 `checkpoints`、WSL 和 CUDA 检查通过，但缺少 `test.py`、`options/base_options.py` 等文件，原因是源码目录缺失，不需要重新下载权重或重装 CUDA。在项目根目录执行：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/ensure_apdrawinggan_source.py
+```
+
+该脚本优先从当前项目 Git 提交恢复缺失的配套源码；没有 Git 或本地源码无法恢复时，会从 `codeload.github.com` 下载固定项目版本的兼容源码，并逐个校验下载文件的大小和 SHA256。已有源码和 checkpoint 保留。安装器第 6 阶段、`download_models.py --model apdrawinggan` 和 `bootstrap_models.py --download-apd` 均自动接入，无需另行克隆源码。修复后重新执行原来的 `install.ps1` 命令即可继续。

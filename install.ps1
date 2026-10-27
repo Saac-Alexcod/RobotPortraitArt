@@ -532,6 +532,7 @@ done
     $null = RunStage -Stage 'Validate APDrawingGAN inference runtime' -Timeout 120 -Exe 'wsl.exe' -Arguments @('-d',$Distro,'--',$selectedPy,'-') -InputText $runtimeProbe
 
     Step '6/7 Download and validate models'
+    $null = RunStage -Stage 'Restore and validate bundled APDrawingGAN source' -Timeout 180 -Exe $venv -Arguments @((Join-Path $root 'scripts\ensure_apdrawinggan_source.py'))
     $null = RunStage -Stage 'Back up corrupt ONNX assets' -Timeout 300 -Exe $venv -Arguments @((Join-Path $root 'scripts\repair_model_files.py'))
     $args = @((Join-Path $root 'scripts\bootstrap_models.py'), '--download', '--download-apd')
     if ($Proxy) { $args += @('--proxy', $Proxy) }

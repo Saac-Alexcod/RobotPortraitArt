@@ -232,6 +232,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.download and not args.download_apd:
         return 0
     try:
+        if args.download_apd:
+            from ensure_apdrawinggan_source import ensure_source
+            ensure_source(ROOT)
         opener = opener_for(args.proxy, args.no_proxy)
         if args.download:
             for key in ('yunet', 'humanseg'):

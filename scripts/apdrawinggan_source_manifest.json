@@ -1,0 +1,211 @@
+{
+  "repository": "Saac-Alexcod/RobotPortraitArt",
+  "revision": "13a03f7419ff1a93ce743b9d1cc0e075028fbbad",
+  "prefix": "third_party/APDrawingGAN/",
+  "files": {
+    ".gitignore": {
+      "sha256": "61d37339cf8b1ffca92c0cecc9fca90ee1dccdeeb6734fd8a9b7b73cdb66fd38",
+      "size": 730
+    },
+    "LICENSE": {
+      "sha256": "66b6e60f458cf8d11b98e85666b650bcb1e8027da459ec729934f44e995d7291",
+      "size": 11338
+    },
+    "data/__init__.py": {
+      "sha256": "277457cbdc52f1e988b769c0186229eda49809dfa47f0bcd7a1debf7a34cc7f4",
+      "size": 2456
+    },
+    "data/aligned_dataset.py": {
+      "sha256": "be9ba93cbbc774fcb801c45f13a86b607685a0a25acd10792404563882c3bd69",
+      "size": 9165
+    },
+    "data/base_data_loader.py": {
+      "sha256": "ebf99d06f5a02985ffcf1552ba38962272ef45c6f3a884b8971c481e38204b0b",
+      "size": 171
+    },
+    "data/base_dataset.py": {
+      "sha256": "9101aa7a70d118c61b244dbc10931e8dff835112f81dde95e77c43309d43bed9",
+      "size": 3421
+    },
+    "data/image_folder.py": {
+      "sha256": "8132db5eff768752abd829a8a5a39bd3fc8167ca60ebf6e32d9be3085f830a2c",
+      "size": 1946
+    },
+    "data/single_dataset.py": {
+      "sha256": "f92873b4eae7420a14505d3331e4eabf6e737843c8edb3da4320978eac7c2301",
+      "size": 6310
+    },
+    "docs/tips.md": {
+      "sha256": "d968c11e5ad50c16db0dcd61c09f0b75cff377acbe0db9badacb2ea404de2ab0",
+      "size": 1580
+    },
+    "imgs/architecture.png": {
+      "sha256": "f6e06ca5a5c44a706aac76f23c23017227d3168289f6dba1b72c7bab957fcb40",
+      "size": 653169
+    },
+    "imgs/samples/img_1673.png": {
+      "sha256": "1c81b6d91857ba70747951be2e716d39b601cc68922c1962389e0b0d4531c69b",
+      "size": 382671
+    },
+    "imgs/samples/img_1673_fake_B.png": {
+      "sha256": "4ecfb75dd3d55ee31c27511cdfc4f39871c0459a3708bd5bad030235ae2487f2",
+      "size": 88319
+    },
+    "imgs/samples/img_1682.png": {
+      "sha256": "e9b825de370394b426b2871189d07c912a5855cb84fc066cca82932e0dc79662",
+      "size": 415547
+    },
+    "imgs/samples/img_1682_fake_B.png": {
+      "sha256": "ad94cd61408db93bf478a9e7f3256f30a930a6d3e5a46e61001711a3716b01c8",
+      "size": 113818
+    },
+    "imgs/samples/img_1696.png": {
+      "sha256": "96d0aec0753760d8f511858a4af2a8cb3cbf006c45944b29671bd0e75f0ca05a",
+      "size": 470182
+    },
+    "imgs/samples/img_1696_fake_B.png": {
+      "sha256": "22d24ee4b78ac6c4b2300feb91e343ee88c93cd3669014a05387e5f44f28c800",
+      "size": 115483
+    },
+    "imgs/samples/img_1701.png": {
+      "sha256": "c99f687df078719330809e57bd571faf3b64fea61a44fa92836811f233893b82",
+      "size": 377565
+    },
+    "imgs/samples/img_1701_fake_B.png": {
+      "sha256": "21db32dbb3c0348800300e83491d72c1d1e8641fbc5eeffb1284d44d646eefa2",
+      "size": 132826
+    },
+    "imgs/samples/img_1794.png": {
+      "sha256": "c336ddc1f92d2e61db2b22490caf59c39ee00f017a89decc7d925e73262afa2a",
+      "size": 206381
+    },
+    "imgs/samples/img_1794_fake_B.png": {
+      "sha256": "5d1eb793232dd37d0a2c7cc372566dcc5a0bbb711c25cab11551931e563e41fc",
+      "size": 84865
+    },
+    "models/__init__.py": {
+      "sha256": "97d9240c31649b0f928fc4716650cde2e1db3bd2cec3d2ef532ab604d2941bab",
+      "size": 1267
+    },
+    "models/apdrawing_gan_model.py": {
+      "sha256": "9e30209b48d508517f49467e737c783970b8210f949929acc7be140afff5e56e",
+      "size": 19449
+    },
+    "models/base_model.py": {
+      "sha256": "a567592868668bbe72c64a239c650200c0a2c267f8c3ca27a7ecac8a5dbcf027",
+      "size": 18264
+    },
+    "models/networks.py": {
+      "sha256": "689453ee16ed4df7df167ed5cfb8ef8bdfecfc2fc1a35bb401731ba984fafce2",
+      "size": 19472
+    },
+    "models/test_model.py": {
+      "sha256": "faa31c8ea54159e1e9f74d512c0d2e98f949d747f2c2fda1a434d2f646d2769e",
+      "size": 4704
+    },
+    "options/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "options/base_options.py": {
+      "sha256": "5ed013bde6c16006a3f922acfdd98b0ecd60b0c6c5c29a2eadfc7d7fc0beb91c",
+      "size": 7976
+    },
+    "options/test_options.py": {
+      "sha256": "dd1c58e1c73df3788e37d2a5e0fff88438daefd3fb393ae56ebdbf14f493bbce",
+      "size": 1101
+    },
+    "options/train_options.py": {
+      "sha256": "97ff23d505ebc6eb25f66029334c734e9a80573752fe5004342a8a878ff4fcaa",
+      "size": 4918
+    },
+    "preprocess/combine_A_and_B.py": {
+      "sha256": "0761d9239d57542e53defb73ecc736d901b1113d9f21b7938f64ee3be62a0a7e",
+      "size": 2110
+    },
+    "preprocess/example/img_1701.jpg": {
+      "sha256": "d344df7127544b6c401ed32ffcfe851d1b079c06a439ce2c22ef01b561c61228",
+      "size": 411933
+    },
+    "preprocess/example/img_1701_aligned.png": {
+      "sha256": "f6dac09f27b6603239b8fb89260087ad92ab0422b0935ff6c73b6300a24f2fe5",
+      "size": 378590
+    },
+    "preprocess/example/img_1701_aligned.txt": {
+      "sha256": "126d67bb95f3a523de51455e894ee04286039bdb732791efaac957a713124935",
+      "size": 40
+    },
+    "preprocess/example/img_1701_aligned_bgmask.png": {
+      "sha256": "ee7bf9e6f3e23b3dceff1a10377ecd07b7b166c428705a8099ff99d5f7b70a87",
+      "size": 15668
+    },
+    "preprocess/example/img_1701_facial5point.mat": {
+      "sha256": "aa60da7d6817289e395f27dff9a480e37f1b556b5137f4aaccd2558af76a9ed4",
+      "size": 230
+    },
+    "preprocess/face_align_512.m": {
+      "sha256": "33c5116807fdb8925d107250b0470352e688293458bd66b129f8912fbe83e552",
+      "size": 1841
+    },
+    "preprocess/readme.md": {
+      "sha256": "0eb6f9f7cd7e3ed162f65d4e2ac9162816fde3c0bfb6956c9e45b3580b336ff0",
+      "size": 3429
+    },
+    "readme.md": {
+      "sha256": "4b6d9f5f019ebc6f84bbf68024a14be541df7ee03f919cdc68e24147fe63131c",
+      "size": 5547
+    },
+    "requirements.txt": {
+      "sha256": "9aca4a31d612c1f4654e520cf06de76e00c76a938c5ae6af8c1009d53e290bcb",
+      "size": 125
+    },
+    "script/test.sh": {
+      "sha256": "6a4a00965ea28493e6890fc63378a8d7ce6fcb3d9fad9eb512d40be9c5fe6596",
+      "size": 90
+    },
+    "script/test_pretrained.sh": {
+      "sha256": "97f2ef69dd8f87c830955c463b61ed45477718d61a147c3eeace16c5b76eeb59",
+      "size": 97
+    },
+    "script/test_single.sh": {
+      "sha256": "7cd7cd595adec422ea7a12e6b0172bef999f7ca0d7e5718300ca7b683106b553",
+      "size": 157
+    },
+    "script/train.sh": {
+      "sha256": "7aff342974d9ba718a761040fe09014a62fc61ccc23076f1e0ee4902d1507462",
+      "size": 161
+    },
+    "script/train_noinit.sh": {
+      "sha256": "78d07a929b51c90b77a42c0d06dc852142b25968bbcb38b93dd83e34892f5d63",
+      "size": 151
+    },
+    "test.py": {
+      "sha256": "23e4e9649b17254ab366dcbd0006fb80f3673f8d108b408594a6b691b7a405e3",
+      "size": 1453
+    },
+    "train.py": {
+      "sha256": "4a91c0a8cb57e30b43dbb6474bf92b9708c3c3d2312007dd04c04a3ea3370ad1",
+      "size": 2594
+    },
+    "util/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "util/html.py": {
+      "sha256": "4c36a06c77ac0b71d25b44cb22979f93d3133694d7549dd0c9a2d614b0c3b285",
+      "size": 1912
+    },
+    "util/image_pool.py": {
+      "sha256": "61326d95c7179a5118e453f4b196ba49149f7ce930523d5594c0717c7949f14b",
+      "size": 1072
+    },
+    "util/util.py": {
+      "sha256": "b5d6baf4693a3463c0dba5abc4fec78a4a02ecd0aa5bf81e4b49cac8157194b7",
+      "size": 1613
+    },
+    "util/visualizer.py": {
+      "sha256": "230e824d03de552fc04cd5243a8f18d826bcffcb0a359ece93d9e94ded2d729e",
+      "size": 8028
+    }
+  }
+}

@@ -5,6 +5,7 @@ import shutil
 import zipfile
 
 from model_download import download, sha256
+from ensure_apdrawinggan_source import ensure_source
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_URL = 'https://cg.cs.tsinghua.edu.cn/people/~Yongjin/APDrawingGAN-Models1.zip'
@@ -19,6 +20,7 @@ ONNX = {
 
 
 def setup():
+    ensure_source(ROOT)
     repo = ROOT / 'third_party/APDrawingGAN'
     if not (repo / 'test.py').is_file():
         raise RuntimeError('Missing bundled third_party/APDrawingGAN source; restore the project checkout first.')
