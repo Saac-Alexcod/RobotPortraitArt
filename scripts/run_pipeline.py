@@ -28,6 +28,7 @@ from robot_portrait.pipeline import (
     GenerationPipeline,
     PipelineConfig,
 )
+from robot_portrait.generators.cartoon import CartoonGenerator
 
 
 def main() -> None:
@@ -236,6 +237,7 @@ def main() -> None:
     )
 
     generators = {
+        CartoonGenerator.name: CartoonGenerator(ROOT, args.apd_distro, args.apd_python),
         BaselineGenerator.name:
             BaselineGenerator(
                 config.baseline

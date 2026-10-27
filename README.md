@@ -139,6 +139,44 @@ python scripts/run_pipeline.py `
 
 ## 启用 APDrawingGAN
 
+### 自动下载模型须知（APDrawingGAN 与 GANs N’ Roses）
+
+在项目根目录的 PowerShell 中执行，下载脚本仅需 **Windows Python 3.10+**，无需 WSL 或 GPU：
+
+```powershell
+# 下载两个模型，以及 APDrawingGAN 所需的 YuNet / PPHumanSeg 权重
+python scripts/download_models.py
+
+# 按需只下载一种模型
+python scripts/download_models.py --model apdrawinggan
+python scripts/download_models.py --model cartoon
+```
+
+- **网络要求：** 需要能访问清华模型站、GitHub（含原始文件下载域名）和 Google Drive。Google Drive 配额限制、登录页或内容校验失败都会报错；排除网络或下载源问题后重新执行命令即可。
+- **下载位置与大小：** APDrawingGAN 权重安装到 `third_party/APDrawingGAN/checkpoints/formal_author/`，预处理权重安装到 `third_party/models/`；GANs N’ Roses 源码和约 302 MiB 的权重安装到 `third_party/GANsNRoses/`。APDrawingGAN 解压后的 checkpoint 约 243 MiB，另需为下载压缩包和临时文件预留空间。
+- **校验与重复执行：** 权重按项目固定 SHA256 校验，校验通过的本地文件直接复用，损坏文件自动重新下载；只有下载完成并校验通过才替换目标文件。哈希来自本项目已使用的模型文件，不是上游数字签名；模型目录的 `provenance.json` 记录来源和哈希。
+- **失败重试：** 每个文件下载失败最多尝试三次。中断后可重新运行；未完成的文件会重新下载，不支持断点续传。请勿同时启动多个下载进程。
+- **已有文件复用：** APDrawingGAN 优先复用项目根目录中通过校验的 `APDrawingGAN-Models1.zip`，仅提取所需 checkpoint；其源码使用项目已包含的适配版本。GANs N’ Roses 下载固定上游版本的推理源码。
+- **下载后的运行条件：** 下载脚本仅准备模型文件。实际推理需要 WSL2 Ubuntu、可用的 PyTorch/CUDA 环境和支持 CUDA 的 NVIDIA 驱动。模型文件不随 Git 分发，使用时请遵守上游许可证与发布条件。
+
+```powershell
+# 首次准备环境、下载模型并运行内置示例
+# 需提前安装 WSL2 Ubuntu、Linux Python 3.10–3.12（含 venv）和 NVIDIA 驱动
+.\scripts\run_models.ps1 -Setup
+
+# 已有环境：使用自己的照片运行两个模型
+.\scripts\run_models.ps1 -InputImage "D:\photos\portrait.jpg"
+
+# 已准备模型与环境：启动 Web 后端
+.\scripts\start_web.ps1
+```
+
+`-Setup` 会下载较大的 PyTorch 包，不能与 `-APDPython` 同时使用；已有自定义 WSL 环境时，先单独下载模型，再用 `-APDPython` 指定解释器运行。普通运行不会自动安装依赖或下载模型。原有 `start_web.ps1 -SetupAPD` **只准备 WSL 环境，不下载 APDrawingGAN 权重**。
+
+单图运行默认将两个模型的 PNG、SVG 和运行记录分别保存到 `outputs/models/apdrawinggan/` 和 `outputs/models/cartoon/`。更多运行参数见 [自动下载与运行说明](docs/AUTO_MODELS.md)。
+
+### 模型文件与环境检查
+
 **Git 仓库不附带 GAN checkpoint、YuNet / PPHumanSeg ONNX 模型及整个 CelebA 数据集。** 这是为了避免模型文件过大、数据再分发和第三方授权问题。
 
 需要另外准备：

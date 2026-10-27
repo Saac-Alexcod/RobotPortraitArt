@@ -14,6 +14,8 @@
 
 ## 2. Obtain official model files
 
+可运行 `python scripts/download_models.py --model apdrawinggan` 自动下载并安装以下三个权重；下载两个模型时省略 `--model`。运行入口与参数见 [自动下载与运行说明](AUTO_MODELS.md)。
+
 | Resource | Upstream source | Local path |
 |---|---|---|
 | APDrawingGAN pre-trained models | [APDrawingGAN README](https://github.com/yiranran/APDrawingGAN)（上游文档的 Model1） | `third_party/APDrawingGAN/checkpoints/formal_author/` |
